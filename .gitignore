@@ -1,0 +1,44 @@
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Build output
+build/
+
+# VS Code
+.vscode/
+!.vscode/extensions.json
+
+# CLion / JetBrains
+.idea/
+
+# macOS
+.DS_Store
+
+# Linux
+*~
+
+# Compiled objects
+*.o
+*.a
+*.elf
+*.bin
+*.hex
+*.map
+
+# Dependencies fetched at build time
+lib/.gitkeep
+
+# Secrets — never commit credentials
+src/config/secrets.h
+secrets.h
+*.env
+
+# Project docs / AI context files
+AGENTS.md
+cache.md
+CLAUDE.md
+rough_plan.md
+development_plan.md
+human_to_do.md
