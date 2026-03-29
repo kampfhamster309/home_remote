@@ -1,20 +1,16 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <TFT_eSPI.h>
-#include <XPT2046_Touchscreen.h>
 #include <lvgl.h>
 
 #include "display_config.h"
+#include "touch/touch_driver.h"
 
 // ----------------------------------------------------------------------------
 // Globals
 // ----------------------------------------------------------------------------
 
 static TFT_eSPI tft;
-
-// Touch uses HSPI — a separate SPI bus from the display (VSPI)
-static SPIClass touchSpi(HSPI);
-static XPT2046_Touchscreen touch(TOUCH_PIN_CS, TOUCH_PIN_IRQ);
 
 // LVGL draw buffers (double-buffered)
 static lv_disp_draw_buf_t draw_buf;
@@ -47,7 +43,6 @@ static void display_init()
     tft.init();
     tft.setRotation(1);  // landscape, USB-C on the right
 
-    // Enable backlight
     pinMode(TFT_PIN_BL, OUTPUT);
     digitalWrite(TFT_PIN_BL, HIGH);
 
@@ -57,19 +52,7 @@ static void display_init()
 }
 
 // ----------------------------------------------------------------------------
-// Touch initialisation
-// ----------------------------------------------------------------------------
-
-static void touch_init()
-{
-    touchSpi.begin(TOUCH_PIN_CLK, TOUCH_PIN_MISO, TOUCH_PIN_MOSI, TOUCH_PIN_CS);
-    touch.begin(touchSpi);
-
-    Serial.println("[touch] XPT2046 initialised on HSPI");
-}
-
-// ----------------------------------------------------------------------------
-// LVGL initialisation
+// LVGL initialisation (display driver only — input driver added later)
 // ----------------------------------------------------------------------------
 
 static void lvgl_init()
@@ -91,24 +74,41 @@ static void lvgl_init()
 
 // ----------------------------------------------------------------------------
 // Hello World screen
+// Long-pressing anywhere re-triggers touch calibration.
 // ----------------------------------------------------------------------------
+
+static void on_long_press(lv_event_t* /*e*/)
+{
+    Serial.println("[ui] Long-press detected — starting recalibration");
+    touch_driver::run_calibration();
+}
 
 static void create_hello_screen()
 {
-    lv_obj_t *screen = lv_scr_act();
+    lv_obj_t* screen = lv_scr_act();
     lv_obj_set_style_bg_color(screen, lv_color_hex(0x1A1A2E), LV_PART_MAIN);
 
-    lv_obj_t *label = lv_label_create(screen);
-    lv_label_set_text(label, "Home Remote\nHello World!");
+    // Invisible full-screen overlay to catch long-press for recalibration
+    lv_obj_t* overlay = lv_obj_create(screen);
+    lv_obj_set_size(overlay, SCREEN_WIDTH, SCREEN_HEIGHT);
+    lv_obj_set_pos(overlay, 0, 0);
+    lv_obj_set_style_bg_opa(overlay, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(overlay, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(overlay, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(overlay, on_long_press, LV_EVENT_LONG_PRESSED, nullptr);
+
+    lv_obj_t* label = lv_label_create(screen);
+    lv_label_set_text(label, "Home Remote");
     lv_obj_set_style_text_color(label, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
     lv_obj_set_style_text_font(label, &lv_font_montserrat_20, LV_PART_MAIN);
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
     lv_obj_align(label, LV_ALIGN_CENTER, 0, -20);
 
-    lv_obj_t *hint = lv_label_create(screen);
-    lv_label_set_text(hint, "Touch screen to test input");
-    lv_obj_set_style_text_color(hint, lv_color_hex(0x888888), LV_PART_MAIN);
+    lv_obj_t* hint = lv_label_create(screen);
+    lv_label_set_text(hint, "Hold to recalibrate touch");
+    lv_obj_set_style_text_color(hint, lv_color_hex(0x555577), LV_PART_MAIN);
     lv_obj_set_style_text_font(hint, &lv_font_montserrat_14, LV_PART_MAIN);
+    lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
     lv_obj_align(hint, LV_ALIGN_CENTER, 0, 20);
 }
 
@@ -120,25 +120,24 @@ void setup()
 {
     Serial.begin(115200);
     Serial.println("\n[boot] Home Remote starting...");
+    Serial.printf("[boot] Free heap: %u bytes\n", ESP.getFreeHeap());
 
     display_init();
-    touch_init();
+    touch_driver::init();
     lvgl_init();
+
+    if (!touch_driver::is_calibrated()) {
+        touch_driver::run_calibration();
+    }
+
+    touch_driver::register_lvgl_indev();
     create_hello_screen();
 
-    Serial.println("[boot] Ready. Touch the screen to see coordinates.");
+    Serial.printf("[boot] Ready. Free heap: %u bytes\n", ESP.getFreeHeap());
 }
 
 void loop()
 {
-    lv_timer_handler();  // run LVGL tasks (~5 ms budget)
-
-    // Raw touch read — printed to serial for TICKET-001 acceptance verification.
-    // Will be replaced by the LVGL input driver in TICKET-002.
-    if (touch.tirqTouched() && touch.touched()) {
-        TS_Point p = touch.getPoint();
-        Serial.printf("[touch] raw x=%-5d y=%-5d z=%d\n", p.x, p.y, p.z);
-    }
-
+    lv_timer_handler();
     delay(5);
 }
