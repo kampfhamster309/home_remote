@@ -6,6 +6,7 @@
 #include "display_config.h"
 #include "touch/touch_driver.h"
 #include "wifi/wifi_manager.h"
+#include "ha/ha_client.h"
 
 // ----------------------------------------------------------------------------
 // Globals
@@ -17,6 +18,22 @@ static TFT_eSPI tft;
 static lv_disp_draw_buf_t draw_buf;
 static lv_color_t buf1[SCREEN_WIDTH * LVGL_BUFFER_LINES];
 static lv_color_t buf2[SCREEN_WIDTH * LVGL_BUFFER_LINES];
+
+// ----------------------------------------------------------------------------
+// Home Assistant callbacks (stubs — entity model added in TICKET-005)
+// ----------------------------------------------------------------------------
+
+static void on_ha_states(const JsonArray& states)
+{
+    Serial.printf("[ha] got %u initial states\n",
+                  static_cast<unsigned>(states.size()));
+}
+
+static void on_ha_state_changed(const char* entity_id,
+                                const JsonObject& /*new_state*/)
+{
+    Serial.printf("[ha] state_changed: %s\n", entity_id);
+}
 
 // ----------------------------------------------------------------------------
 // LVGL display flush callback
@@ -157,6 +174,8 @@ void setup()
 
     wifi_manager::connect();
 
+    ha_client::init(on_ha_states, on_ha_state_changed);
+
     create_main_screen();
 
     Serial.printf("[boot] Ready. Free heap: %u bytes\n", ESP.getFreeHeap());
@@ -166,5 +185,6 @@ void loop()
 {
     lv_timer_handler();
     wifi_manager::tick();
+    ha_client::tick();
     delay(5);
 }
