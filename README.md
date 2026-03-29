@@ -1,5 +1,7 @@
 # Home Remote
 
+Copyright 2026 Felix Harenbrock — Licensed under the [Apache License 2.0](LICENSE).
+
 Touch-screen smart home controller for the ESP32-2432S028 (CYD — Cheap Yellow Display).
 Controls Home Assistant devices via the local network. Supports all devices registered in Home Assistant, including HomeKit-proxied devices.
 
