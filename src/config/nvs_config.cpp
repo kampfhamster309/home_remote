@@ -50,4 +50,52 @@ void clear_touch_cal()
     prefs.end();
 }
 
+// ---- Network / provisioning config -----------------------------------------
+
+static constexpr char NVS_NS_NET[]      = "net_cfg";
+static constexpr char NVS_KEY_SSID[]    = "ssid";
+static constexpr char NVS_KEY_PW[]      = "pw";
+static constexpr char NVS_KEY_HA_URL[]  = "ha_url";
+static constexpr char NVS_KEY_HA_TOK[]  = "ha_token";
+// reuses NVS_KEY_VALID ("valid") with a different namespace
+
+bool load_net_config(NetworkConfig& out)
+{
+    Preferences prefs;
+    prefs.begin(NVS_NS_NET, /* readOnly= */ true);
+
+    const bool valid = prefs.getBool(NVS_KEY_VALID, false);
+    if (valid) {
+        prefs.getString(NVS_KEY_SSID,   out.ssid,     sizeof(out.ssid));
+        prefs.getString(NVS_KEY_PW,     out.password, sizeof(out.password));
+        prefs.getString(NVS_KEY_HA_URL, out.ha_url,   sizeof(out.ha_url));
+        prefs.getString(NVS_KEY_HA_TOK, out.ha_token, sizeof(out.ha_token));
+    }
+
+    prefs.end();
+    return valid;
+}
+
+void save_net_config(const NetworkConfig& cfg)
+{
+    Preferences prefs;
+    prefs.begin(NVS_NS_NET, /* readOnly= */ false);
+
+    prefs.putString(NVS_KEY_SSID,   cfg.ssid);
+    prefs.putString(NVS_KEY_PW,     cfg.password);
+    prefs.putString(NVS_KEY_HA_URL, cfg.ha_url);
+    prefs.putString(NVS_KEY_HA_TOK, cfg.ha_token);
+    prefs.putBool(NVS_KEY_VALID, true);
+
+    prefs.end();
+}
+
+void clear_net_config()
+{
+    Preferences prefs;
+    prefs.begin(NVS_NS_NET, /* readOnly= */ false);
+    prefs.clear();
+    prefs.end();
+}
+
 }  // namespace nvs_config

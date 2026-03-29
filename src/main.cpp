@@ -5,6 +5,7 @@
 
 #include "display_config.h"
 #include "touch/touch_driver.h"
+#include "wifi/wifi_manager.h"
 
 // ----------------------------------------------------------------------------
 // Globals
@@ -73,23 +74,24 @@ static void lvgl_init()
 }
 
 // ----------------------------------------------------------------------------
-// Hello World screen
+// Main screen
 // Long-pressing anywhere re-triggers touch calibration.
+// This screen will be replaced by the full UI in later tickets.
 // ----------------------------------------------------------------------------
 
 static void on_long_press(lv_event_t* /*e*/)
 {
-    Serial.println("[ui] Long-press detected — starting recalibration");
+    Serial.println("[ui] Long-press — recalibrating touch");
     touch_driver::run_calibration();
 }
 
-static void create_hello_screen()
+static void create_main_screen()
 {
-    lv_obj_t* screen = lv_scr_act();
-    lv_obj_set_style_bg_color(screen, lv_color_hex(0x1A1A2E), LV_PART_MAIN);
+    lv_obj_t* scr = lv_obj_create(nullptr);
+    lv_obj_set_style_bg_color(scr, lv_color_hex(0x1A1A2E), LV_PART_MAIN);
 
-    // Invisible full-screen overlay to catch long-press for recalibration
-    lv_obj_t* overlay = lv_obj_create(screen);
+    // Invisible full-screen overlay for long-press recalibration
+    lv_obj_t* overlay = lv_obj_create(scr);
     lv_obj_set_size(overlay, SCREEN_WIDTH, SCREEN_HEIGHT);
     lv_obj_set_pos(overlay, 0, 0);
     lv_obj_set_style_bg_opa(overlay, LV_OPA_TRANSP, LV_PART_MAIN);
@@ -97,19 +99,34 @@ static void create_hello_screen()
     lv_obj_clear_flag(overlay, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_event_cb(overlay, on_long_press, LV_EVENT_LONG_PRESSED, nullptr);
 
-    lv_obj_t* label = lv_label_create(screen);
-    lv_label_set_text(label, "Home Remote");
-    lv_obj_set_style_text_color(label, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
-    lv_obj_set_style_text_font(label, &lv_font_montserrat_20, LV_PART_MAIN);
-    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-    lv_obj_align(label, LV_ALIGN_CENTER, 0, -20);
+    lv_obj_t* title = lv_label_create(scr);
+    lv_label_set_text(title, "Home Remote");
+    lv_obj_set_style_text_color(title, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_20, LV_PART_MAIN);
+    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_align(title, LV_ALIGN_CENTER, 0, -30);
 
-    lv_obj_t* hint = lv_label_create(screen);
+    // Show WiFi IP if connected
+    if (wifi_manager::is_connected()) {
+        char ip_line[40];
+        snprintf(ip_line, sizeof(ip_line), "%s", WiFi.localIP().toString().c_str());
+
+        lv_obj_t* ip = lv_label_create(scr);
+        lv_label_set_text(ip, ip_line);
+        lv_obj_set_style_text_color(ip, lv_color_hex(0x44AA44), LV_PART_MAIN);
+        lv_obj_set_style_text_font(ip, &lv_font_montserrat_14, LV_PART_MAIN);
+        lv_obj_set_style_text_align(ip, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+        lv_obj_align(ip, LV_ALIGN_CENTER, 0, 0);
+    }
+
+    lv_obj_t* hint = lv_label_create(scr);
     lv_label_set_text(hint, "Hold to recalibrate touch");
-    lv_obj_set_style_text_color(hint, lv_color_hex(0x555577), LV_PART_MAIN);
+    lv_obj_set_style_text_color(hint, lv_color_hex(0x444466), LV_PART_MAIN);
     lv_obj_set_style_text_font(hint, &lv_font_montserrat_14, LV_PART_MAIN);
     lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-    lv_obj_align(hint, LV_ALIGN_CENTER, 0, 20);
+    lv_obj_align(hint, LV_ALIGN_CENTER, 0, 30);
+
+    lv_scr_load(scr);
 }
 
 // ----------------------------------------------------------------------------
@@ -131,7 +148,16 @@ void setup()
     }
 
     touch_driver::register_lvgl_indev();
-    create_hello_screen();
+
+    wifi_manager::init();
+
+    if (!wifi_manager::has_config()) {
+        wifi_manager::start_portal();  // does not return — ends with reboot
+    }
+
+    wifi_manager::connect();
+
+    create_main_screen();
 
     Serial.printf("[boot] Ready. Free heap: %u bytes\n", ESP.getFreeHeap());
 }
@@ -139,5 +165,6 @@ void setup()
 void loop()
 {
     lv_timer_handler();
+    wifi_manager::tick();
     delay(5);
 }
