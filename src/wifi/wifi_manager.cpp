@@ -221,7 +221,7 @@ static lv_obj_t* show_portal_screen()
     lv_obj_t* scr = make_boot_screen("Setup Mode", 0xFFFFFF);
 
     add_body_label(scr,
-        "Connect your phone to Wi-Fi:\n" AP_SSID,
+        "Connect your phone to Wi-Fi:\n" "HomeRemote-Setup",
         0xFFDD44, -20);
 
     add_body_label(scr,

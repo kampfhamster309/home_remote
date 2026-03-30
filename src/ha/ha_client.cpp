@@ -45,10 +45,11 @@ static char s_token[384];
 static ha_client::StateListCallback    s_on_states       = nullptr;
 static ha_client::StateChangedCallback s_on_state_changed = nullptr;
 
-// JSON documents.  Allocated statically to avoid fragmentation.
-// 24 KB for the full get_states response; 4 KB for event objects.
-static StaticJsonDocument<24576> s_states_doc;
-static StaticJsonDocument<4096>  s_event_doc;
+// JSON documents.  DynamicJsonDocument keeps the buffers on the heap (not BSS),
+// which is necessary to stay within ESP32's DRAM segment limits.
+// 24 KB for the full get_states response; 4 KB for event/auth messages.
+static DynamicJsonDocument s_states_doc(24576);
+static DynamicJsonDocument s_event_doc(4096);
 
 // ----------------------------------------------------------------------------
 // Helpers
@@ -127,9 +128,12 @@ static void handle_message(const char* payload, size_t length)
         bool success = s_event_doc["success"] | false;
         if (!success) return;
 
-        // The result.result array is the state list.
-        // We re-parse it into the larger document to give the callback full access.
-        JsonArray result = s_event_doc["result"].as<JsonArray>();
+        // Re-parse into the larger states document.
+        // s_event_doc (4 KB) is too small for a full get_states response;
+        // s_states_doc (24 KB) is sized to hold the complete state list.
+        s_states_doc.clear();
+        deserializeJson(s_states_doc, payload, length);
+        JsonArray result = s_states_doc["result"].as<JsonArray>();
         if (result.isNull()) return;
 
         if (s_on_states) {
@@ -280,7 +284,7 @@ bool call_service_ex(const char* domain,
     // Build body: { "entity_id": "...", ...extra }
     StaticJsonDocument<512> body_doc;
     body_doc["entity_id"] = entity_id;
-    for (JsonPairConst kv : extra) {
+    for (JsonPair kv : extra) {
         body_doc[kv.key()] = kv.value();
     }
 

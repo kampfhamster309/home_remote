@@ -2,11 +2,13 @@
 #include <SPI.h>
 #include <TFT_eSPI.h>
 #include <lvgl.h>
+#include <WiFi.h>
 
 #include "display_config.h"
 #include "touch/touch_driver.h"
 #include "wifi/wifi_manager.h"
 #include "ha/ha_client.h"
+#include "ha/entity_cache.h"
 
 // ----------------------------------------------------------------------------
 // Globals
@@ -23,16 +25,23 @@ static lv_color_t buf2[SCREEN_WIDTH * LVGL_BUFFER_LINES];
 // Home Assistant callbacks (stubs — entity model added in TICKET-005)
 // ----------------------------------------------------------------------------
 
+// Called when an entity's state changes — stub until tile UI is built (TICKET-007+)
+static void on_entity_changed(const HaEntity& entity)
+{
+    Serial.printf("[cache] changed: %s → %s\n", entity.entity_id, entity.state);
+}
+
 static void on_ha_states(const JsonArray& states)
 {
-    Serial.printf("[ha] got %u initial states\n",
-                  static_cast<unsigned>(states.size()));
+    entity_cache::populate(states);
+    Serial.printf("[ha] populated cache: %u entities\n",
+                  static_cast<unsigned>(entity_cache::count()));
 }
 
 static void on_ha_state_changed(const char* entity_id,
-                                const JsonObject& /*new_state*/)
+                                const JsonObject& new_state)
 {
-    Serial.printf("[ha] state_changed: %s\n", entity_id);
+    entity_cache::update(entity_id, new_state);
 }
 
 // ----------------------------------------------------------------------------
@@ -174,6 +183,7 @@ void setup()
 
     wifi_manager::connect();
 
+    entity_cache::init(on_entity_changed);
     ha_client::init(on_ha_states, on_ha_state_changed);
 
     create_main_screen();
