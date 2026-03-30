@@ -173,4 +173,9 @@ size_t count()
     return s_count;
 }
 
+const HaEntity* data()
+{
+    return s_entities;
+}
+
 } // namespace entity_cache

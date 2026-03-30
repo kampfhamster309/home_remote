@@ -9,6 +9,7 @@
 #include "wifi/wifi_manager.h"
 #include "ha/ha_client.h"
 #include "ha/entity_cache.h"
+#include "ha/area_cache.h"
 
 // ----------------------------------------------------------------------------
 // Globals
@@ -42,6 +43,37 @@ static void on_ha_state_changed(const char* entity_id,
                                 const JsonObject& new_state)
 {
     entity_cache::update(entity_id, new_state);
+}
+
+static void on_ha_areas(const JsonArray& areas)
+{
+    area_cache::load_areas(areas);
+    Serial.printf("[ha] loaded %u areas\n",
+                  static_cast<unsigned>(area_cache::group_count()));
+}
+
+static void on_ha_entity_registry(const JsonArray& entries)
+{
+    area_cache::load_entity_registry(entries,
+                                     entity_cache::data(),
+                                     entity_cache::count());
+    Serial.println("[ha] entity registry loaded");
+}
+
+static void on_ha_device_registry(const JsonArray& devices)
+{
+    area_cache::build_groups(devices);
+    Serial.printf("[ha] grouped entities: %u room(s)\n",
+                  static_cast<unsigned>(area_cache::group_count()));
+    for (size_t i = 0; i < area_cache::group_count(); ++i) {
+        const area_cache::EntityGroup* g = area_cache::get_group(i);
+        if (g) {
+            Serial.printf("  [%s] %u entit%s\n",
+                          g->name,
+                          static_cast<unsigned>(g->count),
+                          g->count == 1 ? "y" : "ies");
+        }
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -183,8 +215,10 @@ void setup()
 
     wifi_manager::connect();
 
+    area_cache::init();
     entity_cache::init(on_entity_changed);
-    ha_client::init(on_ha_states, on_ha_state_changed);
+    ha_client::init(on_ha_states, on_ha_state_changed,
+                    on_ha_areas, on_ha_entity_registry, on_ha_device_registry);
 
     create_main_screen();
 

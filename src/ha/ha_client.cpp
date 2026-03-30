@@ -18,10 +18,12 @@ enum class HaState {
     DISCONNECTED,
     AUTHENTICATING,
     FETCHING_STATES,
+    FETCHING_AREAS,
+    FETCHING_ENTITY_REG,
+    FETCHING_DEVICE_REG,
     SUBSCRIBED,
 };
 
-// WebSocket client
 static WebSocketsClient s_ws;
 
 // Reconnect backoff: 2 s → 4 s → 8 s → 16 s → 32 s → 64 s (then stays)
@@ -35,20 +37,20 @@ static uint32_t s_msg_id = 0;
 
 static HaState s_state = HaState::DISCONNECTED;
 
-// Parsed HA URL
 static ParsedUrl s_url;
-
-// Token from NVS (copy, since NetworkConfig is local to init)
-static char s_token[384];
+static char      s_token[384];
 
 // User callbacks
-static ha_client::StateListCallback    s_on_states       = nullptr;
+static ha_client::StateListCallback    s_on_states        = nullptr;
 static ha_client::StateChangedCallback s_on_state_changed = nullptr;
+static ha_client::AreaListCallback     s_on_areas         = nullptr;
+static ha_client::EntityRegCallback    s_on_entity_reg    = nullptr;
+static ha_client::DeviceRegCallback    s_on_device_reg    = nullptr;
 
-// JSON documents.  DynamicJsonDocument keeps the buffers on the heap (not BSS),
-// which is necessary to stay within ESP32's DRAM segment limits.
-// 24 KB for the full get_states response; 4 KB for event/auth messages.
-static DynamicJsonDocument s_states_doc(24576);
+// JSON documents on the heap (avoids BSS overflow).
+// 24 KB for large responses (get_states, entity_registry, device_registry with filter).
+// 4 KB for small messages (auth, events, area_registry).
+static DynamicJsonDocument s_large_doc(24576);
 static DynamicJsonDocument s_event_doc(4096);
 
 // ----------------------------------------------------------------------------
@@ -65,7 +67,7 @@ static void send_json(const JsonDocument& doc)
 static void send_auth()
 {
     StaticJsonDocument<512> doc;
-    doc["type"]        = "auth";
+    doc["type"]         = "auth";
     doc["access_token"] = s_token;
     send_json(doc);
 }
@@ -75,6 +77,30 @@ static void send_get_states()
     StaticJsonDocument<64> doc;
     doc["id"]   = ++s_msg_id;
     doc["type"] = "get_states";
+    send_json(doc);
+}
+
+static void send_area_registry()
+{
+    StaticJsonDocument<64> doc;
+    doc["id"]   = ++s_msg_id;
+    doc["type"] = "config/area_registry/list";
+    send_json(doc);
+}
+
+static void send_entity_registry()
+{
+    StaticJsonDocument<64> doc;
+    doc["id"]   = ++s_msg_id;
+    doc["type"] = "config/entity_registry/list";
+    send_json(doc);
+}
+
+static void send_device_registry()
+{
+    StaticJsonDocument<64> doc;
+    doc["id"]   = ++s_msg_id;
+    doc["type"] = "config/device_registry/list";
     send_json(doc);
 }
 
@@ -94,63 +120,96 @@ static void send_subscribe_events()
 static void handle_message(const char* payload, size_t length)
 {
     s_event_doc.clear();
-    DeserializationError err = deserializeJson(s_event_doc, payload, length);
-    if (err) return; // malformed JSON — ignore
+    if (deserializeJson(s_event_doc, payload, length)) return; // malformed
 
     const char* type = s_event_doc["type"] | "";
 
     if (strcmp(type, "auth_required") == 0) {
-        // HA greets us — respond with token
         send_auth();
         s_state = HaState::AUTHENTICATING;
         return;
     }
 
     if (strcmp(type, "auth_ok") == 0) {
-        // Authenticated — fetch all states
         send_get_states();
         s_state = HaState::FETCHING_STATES;
         return;
     }
 
     if (strcmp(type, "auth_invalid") == 0) {
-        // Bad token — disconnect and stop retrying immediately
         s_ws.disconnect();
-        s_state          = HaState::DISCONNECTED;
-        s_backoff_idx    = BACKOFF_COUNT - 1; // max backoff
-        s_reconnect_at   = millis() + BACKOFF_MS[s_backoff_idx];
+        s_state        = HaState::DISCONNECTED;
+        s_backoff_idx  = BACKOFF_COUNT - 1; // lock to max backoff
+        s_reconnect_at = millis() + BACKOFF_MS[s_backoff_idx];
         return;
     }
 
     if (strcmp(type, "result") == 0) {
-        // Response to get_states (our first request with id=1)
-        if (s_state != HaState::FETCHING_STATES) return;
         bool success = s_event_doc["success"] | false;
         if (!success) return;
 
-        // Re-parse into the larger states document.
-        // s_event_doc (4 KB) is too small for a full get_states response;
-        // s_states_doc (24 KB) is sized to hold the complete state list.
-        s_states_doc.clear();
-        deserializeJson(s_states_doc, payload, length);
-        JsonArray result = s_states_doc["result"].as<JsonArray>();
-        if (result.isNull()) return;
-
-        if (s_on_states) {
-            s_on_states(result);
+        if (s_state == HaState::FETCHING_STATES) {
+            // Re-parse into the large doc — s_event_doc (4 KB) is too small
+            // for a real HA get_states response.
+            s_large_doc.clear();
+            deserializeJson(s_large_doc, payload, length);
+            JsonArray result = s_large_doc["result"].as<JsonArray>();
+            if (result.isNull()) return;
+            if (s_on_states) s_on_states(result);
+            send_area_registry();
+            s_state = HaState::FETCHING_AREAS;
+            return;
         }
 
-        // Now subscribe to live events
-        send_subscribe_events();
-        s_state = HaState::SUBSCRIBED;
+        if (s_state == HaState::FETCHING_AREAS) {
+            // Area registry is small — s_event_doc (4 KB) holds it.
+            JsonArray result = s_event_doc["result"].as<JsonArray>();
+            if (!result.isNull() && s_on_areas) s_on_areas(result);
+            send_entity_registry();
+            s_state = HaState::FETCHING_ENTITY_REG;
+            return;
+        }
+
+        if (s_state == HaState::FETCHING_ENTITY_REG) {
+            // Entity registry can be very large. Filter to keep only the three
+            // fields we need — reduces memory by ~10× for typical HA installs.
+            StaticJsonDocument<48> filter;
+            filter[0]["entity_id"] = true;
+            filter[0]["area_id"]   = true;
+            filter[0]["device_id"] = true;
+            s_large_doc.clear();
+            deserializeJson(s_large_doc, payload, length,
+                            DeserializationOption::Filter(filter));
+            JsonArray result = s_large_doc["result"].as<JsonArray>();
+            if (!result.isNull() && s_on_entity_reg) s_on_entity_reg(result);
+            send_device_registry();
+            s_state = HaState::FETCHING_DEVICE_REG;
+            return;
+        }
+
+        if (s_state == HaState::FETCHING_DEVICE_REG) {
+            // Device registry: keep only id and area_id.
+            StaticJsonDocument<32> filter;
+            filter[0]["id"]      = true;
+            filter[0]["area_id"] = true;
+            s_large_doc.clear();
+            deserializeJson(s_large_doc, payload, length,
+                            DeserializationOption::Filter(filter));
+            JsonArray result = s_large_doc["result"].as<JsonArray>();
+            if (!result.isNull() && s_on_device_reg) s_on_device_reg(result);
+            send_subscribe_events();
+            s_state = HaState::SUBSCRIBED;
+            return;
+        }
+
+        // result in SUBSCRIBED = subscribe_events ack — nothing to do
         return;
     }
 
     if (strcmp(type, "event") == 0) {
         if (s_state != HaState::SUBSCRIBED) return;
 
-        const char* event_type =
-            s_event_doc["event"]["event_type"] | "";
+        const char* event_type = s_event_doc["event"]["event_type"] | "";
         if (strcmp(event_type, "state_changed") != 0) return;
 
         const char* entity_id =
@@ -173,14 +232,13 @@ static void on_ws_event(WStype_t type, uint8_t* payload, size_t length)
     switch (type) {
         case WStype_CONNECTED:
             s_state       = HaState::AUTHENTICATING;
-            s_backoff_idx = 0; // reset backoff on successful connect
-            // HA sends auth_required immediately — we wait for it in handle_message
+            s_backoff_idx = 0;
             break;
 
         case WStype_DISCONNECTED:
             s_state        = HaState::DISCONNECTED;
             s_reconnect_at = millis() +
-                             BACKOFF_MS[s_backoff_idx < BACKOFF_COUNT ? s_backoff_idx++ : BACKOFF_COUNT - 1];
+                BACKOFF_MS[s_backoff_idx < BACKOFF_COUNT ? s_backoff_idx++ : BACKOFF_COUNT - 1];
             break;
 
         case WStype_TEXT:
@@ -202,28 +260,34 @@ static void on_ws_event(WStype_t type, uint8_t* payload, size_t length)
 
 namespace ha_client {
 
-void init(StateListCallback on_states, StateChangedCallback on_state_changed)
+void init(StateListCallback    on_states,
+          StateChangedCallback on_state_changed,
+          AreaListCallback     on_areas,
+          EntityRegCallback    on_entity_reg,
+          DeviceRegCallback    on_device_reg)
 {
     s_on_states        = on_states;
     s_on_state_changed = on_state_changed;
-    s_state            = HaState::DISCONNECTED;
-    s_msg_id           = 0;
-    s_backoff_idx      = 0;
-    s_reconnect_at     = 0;
+    s_on_areas         = on_areas;
+    s_on_entity_reg    = on_entity_reg;
+    s_on_device_reg    = on_device_reg;
+
+    s_state        = HaState::DISCONNECTED;
+    s_msg_id       = 0;
+    s_backoff_idx  = 0;
+    s_reconnect_at = 0;
 
     NetworkConfig cfg{};
-    if (!nvs_config::load_net_config(cfg)) return; // no config yet
+    if (!nvs_config::load_net_config(cfg)) return;
 
     s_url = parse_ha_url(cfg.ha_url);
     if (!s_url.valid) return;
 
-    // Copy token so it outlives cfg
     strncpy(s_token, cfg.ha_token, sizeof(s_token) - 1);
     s_token[sizeof(s_token) - 1] = '\0';
 
-    // Set up WebSocket
     s_ws.onEvent(on_ws_event);
-    s_ws.setReconnectInterval(0); // we manage reconnect ourselves
+    s_ws.setReconnectInterval(0);
 
     const char* ws_path = "/api/websocket";
     if (s_url.secure) {
@@ -232,7 +296,6 @@ void init(StateListCallback on_states, StateChangedCallback on_state_changed)
         s_ws.begin(s_url.host, s_url.port, ws_path);
     }
 
-    // Trigger first connect immediately
     s_reconnect_at = millis();
 }
 
@@ -267,7 +330,6 @@ bool call_service_ex(const char* domain,
 
     HTTPClient http;
 
-    // Build URL: http[s]://<host>:<port>/api/services/<domain>/<service>
     String url = s_url.secure ? "https://" : "http://";
     url += s_url.host;
     url += ":";
@@ -281,7 +343,6 @@ bool call_service_ex(const char* domain,
     http.addHeader("Authorization", String("Bearer ") + s_token);
     http.addHeader("Content-Type", "application/json");
 
-    // Build body: { "entity_id": "...", ...extra }
     StaticJsonDocument<512> body_doc;
     body_doc["entity_id"] = entity_id;
     for (JsonPair kv : extra) {

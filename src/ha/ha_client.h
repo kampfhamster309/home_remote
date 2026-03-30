@@ -4,17 +4,19 @@
 
 // Home Assistant client.
 //
-// Transport layer only — does not own the entity cache.
-// TICKET-005 will provide the actual callback implementations.
+// Transport layer only — does not own the entity cache or area grouping.
 //
 // WebSocket path:  ws://<ha-host>:<port>/api/websocket
-//   - Authenticates with long-lived token from NVS
-//   - Fetches all states once on connect via get_states
-//   - Subscribes to state_changed events for live push updates
+//   Startup sequence:
+//     1. auth_required → auth → auth_ok
+//     2. get_states        → StateListCallback
+//     3. area_registry     → AreaListCallback
+//     4. entity_registry   → EntityRegCallback
+//     5. device_registry   → DeviceRegCallback
+//     6. subscribe_events  → StateChangedCallback on each state_changed event
 //
 // REST path: POST /api/services/<domain>/<service>
-//   - Used for outgoing control commands (toggle, turn_on, etc.)
-//   - Fire-and-forget; result arrives as a state_changed event
+//   Used for outgoing control commands (fire-and-forget).
 
 namespace ha_client {
 
@@ -28,9 +30,26 @@ using StateListCallback = void (*)(const JsonArray& states);
 using StateChangedCallback = void (*)(const char* entity_id,
                                       const JsonObject& new_state);
 
+// Called once with the config/area_registry/list result.
+// `areas` is valid only during the callback.
+using AreaListCallback = void (*)(const JsonArray& areas);
+
+// Called once with the config/entity_registry/list result.
+// `entries` is valid only during the callback.
+using EntityRegCallback = void (*)(const JsonArray& entries);
+
+// Called once with the config/device_registry/list result.
+// `devices` is valid only during the callback.
+using DeviceRegCallback = void (*)(const JsonArray& devices);
+
 // Initialise: parse HA URL from NVS config, store callbacks.
 // Does not open the WebSocket connection yet — call tick() to drive it.
-void init(StateListCallback on_states, StateChangedCallback on_state_changed);
+// Registry callbacks (on_areas, on_entity_reg, on_device_reg) may be nullptr.
+void init(StateListCallback    on_states,
+          StateChangedCallback on_state_changed,
+          AreaListCallback     on_areas,
+          EntityRegCallback    on_entity_reg,
+          DeviceRegCallback    on_device_reg);
 
 // Drive the WebSocket event loop and reconnect state machine.
 // Must be called from the Arduino main loop as frequently as possible.

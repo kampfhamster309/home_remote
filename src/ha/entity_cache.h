@@ -39,4 +39,8 @@ const HaEntity* get(size_t index);
 // Number of entities currently in the cache.
 size_t count();
 
+// Pointer to the start of the internal entity array (valid until next populate/init).
+// Used by area_cache::load_entity_registry() to filter registry entries to cached entities.
+const HaEntity* data();
+
 } // namespace entity_cache

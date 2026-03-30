@@ -45,7 +45,8 @@ void test_display_pins_in_valid_gpio_range() {
     assert_valid_gpio(TFT_PIN_SCLK, "TFT_PIN_SCLK");
     assert_valid_gpio(TFT_PIN_CS,   "TFT_PIN_CS");
     assert_valid_gpio(TFT_PIN_DC,   "TFT_PIN_DC");
-    assert_valid_gpio(TFT_PIN_RST,  "TFT_PIN_RST");
+    // TFT_PIN_RST may be -1 (not connected on this board variant) — skip range check
+    if (TFT_PIN_RST >= 0) assert_valid_gpio(TFT_PIN_RST, "TFT_PIN_RST");
     assert_valid_gpio(TFT_PIN_BL,   "TFT_PIN_BL");
 }
 
