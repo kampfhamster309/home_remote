@@ -2,6 +2,7 @@
 
 #include <lvgl.h>
 #include <cstddef>
+#include "ha_entity.h"
 
 // Main application shell.
 //
@@ -42,5 +43,10 @@ lv_obj_t* get_content();
 
 // Index of the currently displayed group.
 size_t active_group();
+
+// Called from main.cpp's on_entity_changed callback.
+// Finds the matching tile in the active content area and refreshes its state.
+// No-op if the entity is not visible (different group or shell not built yet).
+void on_entity_changed(const HaEntity& entity);
 
 } // namespace shell

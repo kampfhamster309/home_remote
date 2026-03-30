@@ -4,9 +4,10 @@
 #include <cstddef>
 
 // Maximum number of HA entities held in the in-memory cache.
-// Each HaEntity is ~192 bytes → 48 entities ≈ 9 KB static RAM.
-// Sized to leave sufficient BSS headroom on the ESP32's 320 KB DRAM.
-static constexpr size_t MAX_ENTITIES = 48;
+// Each HaEntity is ~184 bytes → 40 entities ≈ 7.2 KB static RAM.
+// Reduced from 48 to free ~1.5 KB BSS headroom for TICKET-008 tile widget code.
+// At 4–5 devices per room and up to 8–10 rooms, 40 covers realistic deployments.
+static constexpr size_t MAX_ENTITIES = 40;
 
 // HA entity domain, derived from the entity_id prefix (e.g. "light.*").
 enum class EntityDomain : uint8_t {

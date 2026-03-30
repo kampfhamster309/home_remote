@@ -2,11 +2,14 @@
 
 #include <Arduino.h>
 #include <lvgl.h>
+#include <cstring>
 
 #include "ui_theme.h"
 #include "display_config.h"
 #include "ha/area_cache.h"
+#include "ha/entity_cache.h"
 #include "ha_area.h"
+#include "tile_widget.h"
 
 // ----------------------------------------------------------------------------
 // Module-private state
@@ -16,6 +19,64 @@ namespace {
 
 // Maximum groups the nav bar can hold (MAX_AREAS named + 1 Other)
 static constexpr size_t UI_MAX_GROUPS = MAX_AREAS + 1;
+
+// ----------------------------------------------------------------------------
+// Text helpers
+//
+// The built-in LVGL Montserrat fonts cover ASCII only (0x20–0x7F).
+// German umlauts are UTF-8 two-byte sequences starting with 0xC3.
+// We transliterate them to ASCII digraphs (ä→ae, ö→oe, ü→ue, ß→ss)
+// so they display correctly without a custom font.
+// TICKET-012 will replace this stop-gap with a properly generated font.
+// ----------------------------------------------------------------------------
+
+// Copy src into dst (max_bytes including NUL), transliterating German umlauts
+// to ASCII digraphs. Other non-ASCII bytes are silently dropped.
+static void translit_de(char* dst, const char* src, size_t max_bytes)
+{
+    size_t out = 0;
+    while (*src && out + 1 < max_bytes) {
+        const uint8_t b0 = static_cast<uint8_t>(*src);
+        if (b0 < 0x80) {                          // plain ASCII
+            dst[out++] = *src++;
+        } else if (b0 == 0xC3 && src[1]) {        // Latin-1 Supplement (U+00C0–00FF)
+            const uint8_t b1 = static_cast<uint8_t>(src[1]);
+            src += 2;
+            const char* rep = "";
+            switch (b1) {
+                case 0xA4: rep = "ae"; break;      // ä
+                case 0xB6: rep = "oe"; break;      // ö
+                case 0xBC: rep = "ue"; break;      // ü
+                case 0x84: rep = "Ae"; break;      // Ä
+                case 0x96: rep = "Oe"; break;      // Ö
+                case 0x9C: rep = "Ue"; break;      // Ü
+                case 0x9F: rep = "ss"; break;      // ß
+                default:   break;                  // other C3xx → drop
+            }
+            while (*rep && out + 1 < max_bytes) dst[out++] = *rep++;
+        } else {                                   // skip other multi-byte sequences
+            if      (b0 < 0xE0) src += 2;
+            else if (b0 < 0xF0) src += 3;
+            else                src += 4;
+        }
+    }
+    dst[out] = '\0';
+}
+
+// Build a nav-tab abbreviation: transliterate then keep at most max_chars chars.
+static constexpr size_t TAB_LABEL_MAX = 5;
+
+static void make_tab_label(char* dst, const char* src, size_t max_bytes)
+{
+    char buf[128];
+    translit_de(buf, src, sizeof(buf));
+    size_t n = 0;
+    while (buf[n] && n < TAB_LABEL_MAX && n + 1 < max_bytes) {
+        dst[n] = buf[n];
+        ++n;
+    }
+    dst[n] = '\0';
+}
 
 // Shell LVGL objects
 static lv_obj_t* s_screen     = nullptr;
@@ -28,6 +89,12 @@ static lv_obj_t* s_nav_bar    = nullptr;
 static lv_obj_t* s_tab_btns[UI_MAX_GROUPS];
 static size_t    s_group_count = 0;
 static size_t    s_active_idx  = 0;
+
+// ----------------------------------------------------------------------------
+// Forward declaration (defined later in this file)
+// ----------------------------------------------------------------------------
+
+static void build_tile_grid(size_t group_idx);
 
 // ----------------------------------------------------------------------------
 // Nav tab helpers
@@ -59,10 +126,13 @@ static void set_active_group(size_t idx)
         if (s_tab_btns[i]) apply_tab_style(s_tab_btns[i], i == idx);
     }
 
-    // Update header room name
+    // Update header room name (full transliterated name)
     const area_cache::EntityGroup* g = area_cache::get_group(idx);
     if (g && s_room_label) {
-        lv_label_set_text(s_room_label, (g->name[0] != '\0') ? g->name : "Home");
+        const char* raw = (g->name[0] != '\0') ? g->name : "Home";
+        char buf[sizeof(g->name) * 2]; // digraphs can double length
+        translit_de(buf, raw, sizeof(buf));
+        lv_label_set_text(s_room_label, buf);
     }
 
     // Scroll active tab into view (no-op if already visible)
@@ -71,6 +141,9 @@ static void set_active_group(size_t idx)
     }
 
     s_active_idx = idx;
+
+    // Rebuild the tile grid for the newly selected group
+    build_tile_grid(idx);
 }
 
 static void on_tab_click(lv_event_t* e)
@@ -94,6 +167,70 @@ static void style_container(lv_obj_t* obj, lv_color_t bg)
     lv_obj_set_style_pad_all(obj, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(obj, 0, LV_PART_MAIN);
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+}
+
+// ----------------------------------------------------------------------------
+// Tile grid
+//
+// Layout rules (content area = SCREEN_WIDTH × UI_CONTENT_H):
+//   n=1      → 1 tile, full area
+//   n=2      → 2 tiles, side by side (1 row)
+//   n=3,4    → 2×2 grid
+//   n=5      → 2 columns × 3 rows; 5th tile centred in the last row
+//
+// PAD pixels of spacing between tiles (and between tiles and content edges).
+// ----------------------------------------------------------------------------
+
+static constexpr int TILE_PAD = 2;
+
+static void build_tile_grid(size_t group_idx)
+{
+    if (!s_content) return;
+
+    // Remove all previous tiles (fires LV_EVENT_DELETE → frees TileUD)
+    lv_obj_clean(s_content);
+
+    const area_cache::EntityGroup* g = area_cache::get_group(group_idx);
+    const size_t n = g ? g->count : 0;
+
+    if (n == 0) {
+        lv_obj_t* hint = lv_label_create(s_content);
+        lv_label_set_text(hint, "No devices in this room");
+        lv_obj_set_style_text_color(hint, lv_color_hex(UI_COL_TEXT_DIM), LV_PART_MAIN);
+        lv_obj_set_style_text_font(hint, &lv_font_montserrat_14, LV_PART_MAIN);
+        lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+        lv_obj_align(hint, LV_ALIGN_CENTER, 0, 0);
+        return;
+    }
+
+    const int W    = SCREEN_WIDTH;
+    const int H    = UI_CONTENT_H;
+    const int P    = TILE_PAD;
+    const int cols = (n == 1) ? 1 : 2;
+    const int rows = (n <= 2) ? 1 : (n <= 4) ? 2 : 3;
+    // tile width:  W = (cols+1)*P + cols*tw  →  tw = (W - (cols+1)*P) / cols
+    const int tw = (W - (cols + 1) * P) / cols;
+    // tile height: H = (rows+1)*P + rows*th  →  th = (H - (rows+1)*P) / rows
+    const int th = (H - (rows + 1) * P) / rows;
+
+    for (size_t i = 0; i < n; ++i) {
+        const HaEntity* entity = entity_cache::get(g->entity_indices[i]);
+        if (!entity) continue;
+
+        int x, y;
+        if (n == 5 && i == 4) {
+            // 5th tile: centred horizontally in the last row
+            x = (W - tw) / 2;
+            y = P + 2 * (th + P);
+        } else {
+            const int col = static_cast<int>(i % 2);
+            const int row = static_cast<int>(i / 2);
+            x = P + col * (tw + P);
+            y = P + row * (th + P);
+        }
+
+        tile_widget::create(s_content, *entity, x, y, tw, th);
+    }
 }
 
 } // anonymous namespace
@@ -175,7 +312,6 @@ void create()
     lv_obj_set_size(s_content, SCREEN_WIDTH, UI_CONTENT_H);
     lv_obj_set_pos(s_content, 0, UI_HEADER_H);
     style_container(s_content, lv_color_hex(UI_COL_BG));
-    // TICKET-009 will add tile widgets here
 
     // ---- Nav bar ------------------------------------------------------------
     s_nav_bar = lv_obj_create(s_screen);
@@ -213,7 +349,12 @@ void create()
 
     for (size_t i = 0; i < s_group_count && i < UI_MAX_GROUPS; ++i) {
         const area_cache::EntityGroup* g = area_cache::get_group(i);
-        const char* label = (g && g->name[0] != '\0') ? g->name : "Other";
+        // Nav tab: abbreviated (≤5 chars after umlaut transliteration)
+        char tab_label[16];
+        make_tab_label(tab_label,
+                       (g && g->name[0] != '\0') ? g->name : "Other",
+                       sizeof(tab_label));
+        const char* label = tab_label;
 
         lv_obj_t* btn = lv_btn_create(s_nav_bar);
         lv_obj_set_size(btn, tab_w, UI_NAV_H);
@@ -259,6 +400,23 @@ lv_obj_t* get_content()
 size_t active_group()
 {
     return s_active_idx;
+}
+
+void on_entity_changed(const HaEntity& entity)
+{
+    if (!s_content) return;
+
+    // Walk the content area's direct children; each is a tile widget.
+    // The "No devices" hint label has no TileUD so entity_id() returns nullptr — skip it.
+    const uint32_t child_cnt = lv_obj_get_child_cnt(s_content);
+    for (uint32_t i = 0; i < child_cnt; ++i) {
+        lv_obj_t* child = lv_obj_get_child(s_content, i);
+        const char* eid = tile_widget::entity_id(child);
+        if (eid && strcmp(eid, entity.entity_id) == 0) {
+            tile_widget::update(child, entity);
+            break;
+        }
+    }
 }
 
 } // namespace shell

@@ -30,7 +30,7 @@ static lv_color_t buf2[SCREEN_WIDTH * LVGL_BUFFER_LINES];
 static void on_entity_changed(const HaEntity& entity)
 {
     Serial.printf("[cache] changed: %s → %s\n", entity.entity_id, entity.state);
-    // TICKET-009: shell::on_entity_changed(entity)
+    shell::on_entity_changed(entity);
 }
 
 static void on_ha_states(const JsonArray& states)
