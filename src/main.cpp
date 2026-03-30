@@ -10,6 +10,7 @@
 #include "ha/ha_client.h"
 #include "ha/entity_cache.h"
 #include "ha/area_cache.h"
+#include "ui/shell.h"
 
 // ----------------------------------------------------------------------------
 // Globals
@@ -23,13 +24,13 @@ static lv_color_t buf1[SCREEN_WIDTH * LVGL_BUFFER_LINES];
 static lv_color_t buf2[SCREEN_WIDTH * LVGL_BUFFER_LINES];
 
 // ----------------------------------------------------------------------------
-// Home Assistant callbacks (stubs — entity model added in TICKET-005)
+// Home Assistant callbacks
 // ----------------------------------------------------------------------------
 
-// Called when an entity's state changes — stub until tile UI is built (TICKET-007+)
 static void on_entity_changed(const HaEntity& entity)
 {
     Serial.printf("[cache] changed: %s → %s\n", entity.entity_id, entity.state);
+    // TICKET-009: shell::on_entity_changed(entity)
 }
 
 static void on_ha_states(const JsonArray& states)
@@ -48,8 +49,6 @@ static void on_ha_state_changed(const char* entity_id,
 static void on_ha_areas(const JsonArray& areas)
 {
     area_cache::load_areas(areas);
-    Serial.printf("[ha] loaded %u areas\n",
-                  static_cast<unsigned>(area_cache::group_count()));
 }
 
 static void on_ha_entity_registry(const JsonArray& entries)
@@ -57,12 +56,12 @@ static void on_ha_entity_registry(const JsonArray& entries)
     area_cache::load_entity_registry(entries,
                                      entity_cache::data(),
                                      entity_cache::count());
-    Serial.println("[ha] entity registry loaded");
 }
 
 static void on_ha_device_registry(const JsonArray& devices)
 {
     area_cache::build_groups(devices);
+
     Serial.printf("[ha] grouped entities: %u room(s)\n",
                   static_cast<unsigned>(area_cache::group_count()));
     for (size_t i = 0; i < area_cache::group_count(); ++i) {
@@ -74,6 +73,10 @@ static void on_ha_device_registry(const JsonArray& devices)
                           g->count == 1 ? "y" : "ies");
         }
     }
+
+    // Build the shell now that groups are available.
+    // This runs inside ha_client::tick() (not an ISR) so LVGL calls are safe.
+    shell::create();
 }
 
 // ----------------------------------------------------------------------------
@@ -132,62 +135,6 @@ static void lvgl_init()
 }
 
 // ----------------------------------------------------------------------------
-// Main screen
-// Long-pressing anywhere re-triggers touch calibration.
-// This screen will be replaced by the full UI in later tickets.
-// ----------------------------------------------------------------------------
-
-static void on_long_press(lv_event_t* /*e*/)
-{
-    Serial.println("[ui] Long-press — recalibrating touch");
-    touch_driver::run_calibration();
-}
-
-static void create_main_screen()
-{
-    lv_obj_t* scr = lv_obj_create(nullptr);
-    lv_obj_set_style_bg_color(scr, lv_color_hex(0x1A1A2E), LV_PART_MAIN);
-
-    // Invisible full-screen overlay for long-press recalibration
-    lv_obj_t* overlay = lv_obj_create(scr);
-    lv_obj_set_size(overlay, SCREEN_WIDTH, SCREEN_HEIGHT);
-    lv_obj_set_pos(overlay, 0, 0);
-    lv_obj_set_style_bg_opa(overlay, LV_OPA_TRANSP, LV_PART_MAIN);
-    lv_obj_set_style_border_width(overlay, 0, LV_PART_MAIN);
-    lv_obj_clear_flag(overlay, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(overlay, on_long_press, LV_EVENT_LONG_PRESSED, nullptr);
-
-    lv_obj_t* title = lv_label_create(scr);
-    lv_label_set_text(title, "Home Remote");
-    lv_obj_set_style_text_color(title, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_20, LV_PART_MAIN);
-    lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-    lv_obj_align(title, LV_ALIGN_CENTER, 0, -30);
-
-    // Show WiFi IP if connected
-    if (wifi_manager::is_connected()) {
-        char ip_line[40];
-        snprintf(ip_line, sizeof(ip_line), "%s", WiFi.localIP().toString().c_str());
-
-        lv_obj_t* ip = lv_label_create(scr);
-        lv_label_set_text(ip, ip_line);
-        lv_obj_set_style_text_color(ip, lv_color_hex(0x44AA44), LV_PART_MAIN);
-        lv_obj_set_style_text_font(ip, &lv_font_montserrat_14, LV_PART_MAIN);
-        lv_obj_set_style_text_align(ip, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-        lv_obj_align(ip, LV_ALIGN_CENTER, 0, 0);
-    }
-
-    lv_obj_t* hint = lv_label_create(scr);
-    lv_label_set_text(hint, "Hold to recalibrate touch");
-    lv_obj_set_style_text_color(hint, lv_color_hex(0x444466), LV_PART_MAIN);
-    lv_obj_set_style_text_font(hint, &lv_font_montserrat_14, LV_PART_MAIN);
-    lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-    lv_obj_align(hint, LV_ALIGN_CENTER, 0, 30);
-
-    lv_scr_load(scr);
-}
-
-// ----------------------------------------------------------------------------
 // Arduino entry points
 // ----------------------------------------------------------------------------
 
@@ -215,12 +162,15 @@ void setup()
 
     wifi_manager::connect();
 
+    // Show a loading screen while the HA WebSocket startup sequence runs
+    // (auth → get_states → area/entity/device registries).
+    // shell::create() replaces this when groups are ready.
+    shell::show_loading();
+
     area_cache::init();
     entity_cache::init(on_entity_changed);
     ha_client::init(on_ha_states, on_ha_state_changed,
                     on_ha_areas, on_ha_entity_registry, on_ha_device_registry);
-
-    create_main_screen();
 
     Serial.printf("[boot] Ready. Free heap: %u bytes\n", ESP.getFreeHeap());
 }
@@ -230,5 +180,6 @@ void loop()
     lv_timer_handler();
     wifi_manager::tick();
     ha_client::tick();
+    shell::update_status(wifi_manager::is_connected(), ha_client::is_connected());
     delay(5);
 }
