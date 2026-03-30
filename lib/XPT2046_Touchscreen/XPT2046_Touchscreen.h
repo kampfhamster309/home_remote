@@ -51,7 +51,11 @@ public:
 	bool begin();
 
 	// Use a caller-supplied SPI bus — allows HSPI on ESP32.
-	bool begin(SPIClass& spi) { _spi = &spi; return begin(); }
+	// The caller is responsible for calling spi.begin(clk,miso,mosi,cs) first.
+	// This overload must NOT call _spi->begin() again because that would
+	// reinitialise the bus to its default pins, conflicting with other peripherals
+	// already mapped to those GPIOs (e.g. the ILI9341 display on VSPI).
+	bool begin(SPIClass& spi);
 
 	TS_Point getPoint();
 	bool tirqTouched();

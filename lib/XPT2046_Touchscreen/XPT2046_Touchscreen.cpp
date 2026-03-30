@@ -46,6 +46,22 @@ bool XPT2046_Touchscreen::begin()
 	return true;
 }
 
+bool XPT2046_Touchscreen::begin(SPIClass& spi)
+{
+	// Caller has already called spi.begin(clk, miso, mosi, cs) with the correct
+	// custom pins.  Do NOT call _spi->begin() here — that would reset the bus to
+	// its hardware-default pins, conflicting with other peripherals on those GPIOs.
+	_spi = &spi;
+	pinMode(csPin, OUTPUT);
+	digitalWrite(csPin, HIGH);
+	if (255 != tirqPin) {
+		pinMode( tirqPin, INPUT );
+		attachInterrupt(digitalPinToInterrupt(tirqPin), isrPin, FALLING);
+		isrPinptr = this;
+	}
+	return true;
+}
+
 ISR_PREFIX
 void isrPin( void )
 {
