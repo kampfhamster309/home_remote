@@ -12,13 +12,13 @@
 #define LVGL_BUFFER_LINES 10
 
 // ----------------------------------------------------------------------------
-// Display SPI pins (ILI9341) — VSPI bus
+// Display SPI pins (ST7789) — HSPI bus (native pins)
 // ----------------------------------------------------------------------------
 #define TFT_PIN_MOSI 13
 #define TFT_PIN_SCLK 14
 #define TFT_PIN_CS   15
 #define TFT_PIN_DC    2
-#define TFT_PIN_RST  12
+#define TFT_PIN_RST  -1
 #define TFT_PIN_BL   21   // Backlight (active HIGH)
 
 // ----------------------------------------------------------------------------

@@ -21,7 +21,7 @@
  * Set to 1 because TFT_eSPI pushColors() is called with swap=true,
  * resulting in correct byte order on the SPI bus.
  * If colors look wrong on the display, toggle this value. */
-#define LV_COLOR_16_SWAP 1
+#define LV_COLOR_16_SWAP 0
 
 /* Enable transparency support (needed for anti-aliased fonts) */
 #define LV_COLOR_SCREEN_TRANSP 0

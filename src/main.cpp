@@ -75,7 +75,7 @@ static void display_init()
 
     tft.fillScreen(TFT_BLACK);
 
-    Serial.println("[display] ILI9341 initialised (320x240, landscape)");
+    Serial.println("[display] ST7789 initialised (320x240, landscape)");
 }
 
 // ----------------------------------------------------------------------------
