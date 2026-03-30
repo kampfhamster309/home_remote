@@ -13,7 +13,7 @@
 // Module-private state
 // ----------------------------------------------------------------------------
 
-static SPIClass          s_spi(HSPI);
+static SPIClass          s_spi(VSPI);  // HSPI is used by TFT_eSPI for the display
 static XPT2046_Touchscreen s_touch(TOUCH_PIN_CS, TOUCH_PIN_IRQ);
 
 static TouchCalibration  s_cal{};
