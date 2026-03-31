@@ -9,6 +9,7 @@
 #include "display_config.h"
 #include "ha/entity_cache.h"
 #include "ha/ha_client.h"
+#include "i18n/i18n.h"
 
 // ----------------------------------------------------------------------------
 // Module-private state
@@ -342,7 +343,7 @@ void open(const char* entity_id)
     if (entity->domain == EntityDomain::LIGHT) {
         if (entity->attrs.has_brightness && s_slider_count < 2) {
             s_sliders[s_slider_count++] = add_slider_row(
-                content, "Brightness", slider_y,
+                content, i18n::str(StrId::DETAIL_BRIGHTNESS), slider_y,
                 0, 255, static_cast<int>(entity->attrs.brightness),
                 entity_id, SliderTarget::BRIGHTNESS);
             slider_y += 54;
@@ -351,7 +352,7 @@ void open(const char* entity_id)
             const int ct = entity->attrs.color_temp > 0
                 ? static_cast<int>(entity->attrs.color_temp) : 300;
             s_sliders[s_slider_count++] = add_slider_row(
-                content, "Color Temp", slider_y,
+                content, i18n::str(StrId::DETAIL_COLOR_TEMP), slider_y,
                 153, 500, ct,
                 entity_id, SliderTarget::COLOR_TEMP);
         }
@@ -361,13 +362,13 @@ void open(const char* entity_id)
         if (t < 10) t = 20;
         if (t > 35) t = 35;
         s_sliders[s_slider_count++] = add_slider_row(
-            content, "Target Temp", slider_y,
+            content, i18n::str(StrId::DETAIL_TARGET_TEMP), slider_y,
             10, 35, t,
             entity_id, SliderTarget::TARGET_TEMP);
     } else if (entity->domain == EntityDomain::COVER &&
                entity->attrs.has_position) {
         s_sliders[s_slider_count++] = add_slider_row(
-            content, "Position", slider_y,
+            content, i18n::str(StrId::DETAIL_POSITION), slider_y,
             0, 100, static_cast<int>(entity->attrs.position),
             entity_id, SliderTarget::POSITION);
     }

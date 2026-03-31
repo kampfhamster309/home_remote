@@ -1,0 +1,53 @@
+#pragma once
+
+#include <stdint.h>
+
+// Supported display locales.
+enum class Locale : uint8_t { DE = 0, EN = 1 };
+
+// Every user-visible string shown on the device display has an entry here.
+// The HTML captive portal is served to a browser and is intentionally
+// excluded — it always uses English regardless of the device locale.
+enum class StrId : uint8_t {
+    // Loading / main shell
+    APP_NAME,           // "Home Remote"
+    CONNECTING_HA,      // "Connecting to Home Assistant..."
+    NO_ROOMS,           // "No rooms found in\nHome Assistant"
+    NO_DEVICES,         // "No devices in this room"
+
+    // WiFi boot screens
+    WIFI_SETUP_MODE,    // "Setup Mode"
+    WIFI_SETUP_CONNECT, // "Connect your phone to Wi-Fi:\nHomeRemote-Setup"
+    WIFI_SETUP_BROWSER, // "Then open your browser.\nA setup page will appear."
+    WIFI_CONNECTING,    // "Connecting..."
+    WIFI_SSID_FMT,      // "Wi-Fi: %s"  (printf format — %s = SSID)
+    WIFI_CONNECTED,     // "Connected"
+    WIFI_IP_FMT,        // "IP: %s"     (printf format — %s = IP address)
+    WIFI_NO_WIFI,       // "No Wi-Fi"
+    WIFI_FAIL,          // "Could not connect.\nHA features unavailable."
+
+    // Detail / control screen slider labels
+    DETAIL_BRIGHTNESS,  // "Brightness"
+    DETAIL_COLOR_TEMP,  // "Color Temp"
+    DETAIL_TARGET_TEMP, // "Target Temp"
+    DETAIL_POSITION,    // "Position"
+
+    _COUNT              // sentinel — keep last
+};
+
+namespace i18n {
+
+// Load locale from NVS.  Call once at startup before any str() calls.
+// On native builds (no NVS) this is a no-op; locale defaults to DE.
+void init();
+
+// Read / write the active locale.
+// set_locale() persists the change to NVS on device builds.
+Locale get_locale();
+void   set_locale(Locale loc);
+
+// Return the string for `id` in the active locale.
+// Returns "" for out-of-range ids (never nullptr).
+const char* str(StrId id);
+
+} // namespace i18n

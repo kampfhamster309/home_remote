@@ -11,6 +11,7 @@
 #include "ha_area.h"
 #include "tile_widget.h"
 #include "detail_screen.h"
+#include "i18n/i18n.h"
 
 // ----------------------------------------------------------------------------
 // Module-private state
@@ -196,7 +197,7 @@ static void build_tile_grid(size_t group_idx)
 
     if (n == 0) {
         lv_obj_t* hint = lv_label_create(s_content);
-        lv_label_set_text(hint, "No devices in this room");
+        lv_label_set_text(hint, i18n::str(StrId::NO_DEVICES));
         lv_obj_set_style_text_color(hint, lv_color_hex(UI_COL_TEXT_DIM), LV_PART_MAIN);
         lv_obj_set_style_text_font(hint, &lv_font_montserrat_14, LV_PART_MAIN);
         lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
@@ -248,13 +249,13 @@ void show_loading()
     style_container(scr, lv_color_hex(UI_COL_BG));
 
     lv_obj_t* title = lv_label_create(scr);
-    lv_label_set_text(title, "Home Remote");
+    lv_label_set_text(title, i18n::str(StrId::APP_NAME));
     lv_obj_set_style_text_color(title, lv_color_hex(UI_COL_TEXT), LV_PART_MAIN);
     lv_obj_set_style_text_font(title, &lv_font_montserrat_20, LV_PART_MAIN);
     lv_obj_align(title, LV_ALIGN_CENTER, 0, -20);
 
     lv_obj_t* sub = lv_label_create(scr);
-    lv_label_set_text(sub, "Connecting to Home Assistant...");
+    lv_label_set_text(sub, i18n::str(StrId::CONNECTING_HA));
     lv_obj_set_style_text_color(sub, lv_color_hex(UI_COL_TEXT_DIM), LV_PART_MAIN);
     lv_obj_set_style_text_font(sub, &lv_font_montserrat_14, LV_PART_MAIN);
     lv_obj_align(sub, LV_ALIGN_CENTER, 0, 12);
@@ -330,7 +331,7 @@ void create()
 
     if (s_group_count == 0) {
         lv_obj_t* hint = lv_label_create(s_content);
-        lv_label_set_text(hint, "No rooms found in\nHome Assistant");
+        lv_label_set_text(hint, i18n::str(StrId::NO_ROOMS));
         lv_obj_set_style_text_color(hint, lv_color_hex(UI_COL_TEXT_DIM), LV_PART_MAIN);
         lv_obj_set_style_text_font(hint, &lv_font_montserrat_14, LV_PART_MAIN);
         lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);

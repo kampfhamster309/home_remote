@@ -11,6 +11,7 @@
 #include "ha/entity_cache.h"
 #include "ha/area_cache.h"
 #include "ui/shell.h"
+#include "i18n/i18n.h"
 
 // ----------------------------------------------------------------------------
 // Globals
@@ -144,6 +145,8 @@ void setup()
     Serial.begin(115200);
     Serial.println("\n[boot] Home Remote starting...");
     Serial.printf("[boot] Free heap: %u bytes\n", ESP.getFreeHeap());
+
+    i18n::init();   // load locale from NVS before any screen is shown
 
     display_init();
     touch_driver::init();

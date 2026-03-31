@@ -9,6 +9,7 @@
 #include "display_config.h"
 #include "net_validate.h"
 #include "../config/nvs_config.h"
+#include "../i18n/i18n.h"
 
 // ----------------------------------------------------------------------------
 // Constants
@@ -218,15 +219,11 @@ static void handle_not_found()
 
 static lv_obj_t* show_portal_screen()
 {
-    lv_obj_t* scr = make_boot_screen("Setup Mode", 0xFFFFFF);
+    lv_obj_t* scr = make_boot_screen(i18n::str(StrId::WIFI_SETUP_MODE), 0xFFFFFF);
 
-    add_body_label(scr,
-        "Connect your phone to Wi-Fi:\n" "HomeRemote-Setup",
-        0xFFDD44, -20);
+    add_body_label(scr, i18n::str(StrId::WIFI_SETUP_CONNECT), 0xFFDD44, -20);
 
-    add_body_label(scr,
-        "Then open your browser.\nA setup page will appear.",
-        0x888888, 30);
+    add_body_label(scr, i18n::str(StrId::WIFI_SETUP_BROWSER), 0x888888, 30);
 
     lv_timer_handler();
     return scr;
@@ -290,10 +287,10 @@ bool connect()
     WiFi.setAutoReconnect(true);
 
     // ---- Connecting screen ----
-    lv_obj_t* scr = make_boot_screen("Connecting...", 0xFFFFFF);
+    lv_obj_t* scr = make_boot_screen(i18n::str(StrId::WIFI_CONNECTING), 0xFFFFFF);
 
     char line[80];
-    snprintf(line, sizeof(line), "Wi-Fi: %s", s_config.ssid);
+    snprintf(line, sizeof(line), i18n::str(StrId::WIFI_SSID_FMT), s_config.ssid);
     add_body_label(scr, line, 0xCCCCCC, -20);
 
     lv_obj_t* spinner = lv_spinner_create(scr, 1000, 60);
@@ -315,8 +312,8 @@ bool connect()
         Serial.printf("[wifi] Connected — IP: %s\n",
                       WiFi.localIP().toString().c_str());
 
-        lv_obj_t* ok_scr = make_boot_screen("Connected", 0x44DD44);
-        snprintf(line, sizeof(line), "IP: %s", WiFi.localIP().toString().c_str());
+        lv_obj_t* ok_scr = make_boot_screen(i18n::str(StrId::WIFI_CONNECTED), 0x44DD44);
+        snprintf(line, sizeof(line), i18n::str(StrId::WIFI_IP_FMT), WiFi.localIP().toString().c_str());
         add_body_label(ok_scr, line, 0xAAAAAA, 10);
         lv_timer_handler();
         delay(1500);
@@ -327,9 +324,8 @@ bool connect()
     } else {
         Serial.println("[wifi] Connection failed — continuing offline");
 
-        lv_obj_t* fail_scr = make_boot_screen("No Wi-Fi", 0xFF5555);
-        add_body_label(fail_scr,
-            "Could not connect.\nHA features unavailable.", 0xAAAAAA, 10);
+        lv_obj_t* fail_scr = make_boot_screen(i18n::str(StrId::WIFI_NO_WIFI), 0xFF5555);
+        add_body_label(fail_scr, i18n::str(StrId::WIFI_FAIL), 0xAAAAAA, 10);
         lv_timer_handler();
         delay(2000);
         dismiss_boot_screen(fail_scr);
