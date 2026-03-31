@@ -10,6 +10,7 @@
 #include "ha/entity_cache.h"
 #include "ha/ha_client.h"
 #include "i18n/i18n.h"
+#include "ui_icons.h"
 
 // ----------------------------------------------------------------------------
 // Module-private state
@@ -317,15 +318,15 @@ void open(const char* entity_id)
     // ---- Icon + current state ----------------------------------------------
     const char* icon_sym;
     switch (entity->domain) {
-        case EntityDomain::LIGHT:   icon_sym = LV_SYMBOL_CHARGE;   break;
-        case EntityDomain::CLIMATE: icon_sym = LV_SYMBOL_SETTINGS; break;
-        case EntityDomain::COVER:   icon_sym = LV_SYMBOL_UP;       break;
-        default:                    icon_sym = LV_SYMBOL_HOME;     break;
+        case EntityDomain::LIGHT:   icon_sym = UI_ICON_LIGHTBULB;   break;
+        case EntityDomain::CLIMATE: icon_sym = UI_ICON_THERMOMETER;  break;
+        case EntityDomain::COVER:   icon_sym = UI_ICON_GRIP_LINES;   break;
+        default:                    icon_sym = UI_ICON_HOME;         break;
     }
 
     lv_obj_t* icon_lbl = lv_label_create(content);
     lv_label_set_text(icon_lbl, icon_sym);
-    lv_obj_set_style_text_font(icon_lbl, &lv_font_montserrat_24, LV_PART_MAIN);
+    lv_obj_set_style_text_font(icon_lbl, &lv_font_icons_20, LV_PART_MAIN);
     lv_obj_set_style_text_color(icon_lbl, lv_color_hex(UI_COL_ACCENT), LV_PART_MAIN);
     lv_obj_set_pos(icon_lbl, 10, 10);
 

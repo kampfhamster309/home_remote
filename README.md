@@ -127,8 +127,7 @@ home_remote/
 | 009 | Group/room screen | ✅ |
 | 010 | Device detail/control screen | ✅ |
 | 011 | Localization (DE/EN) | ✅ |
-| 011 | Localization (DE/EN) | — |
-| 012 | Icon integration | — |
+| 012 | Icon integration | ✅ |
 | 013 | Settings submenu | — |
 | 014 | Error handling & offline mode | — |
 | 016 | Integration testing & hardening | — |

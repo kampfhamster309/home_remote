@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "ui_theme.h"
+#include "ui_icons.h"
 #include "ha/entity_cache.h"
 #include "ha/ha_client.h"
 #include "detail_screen.h"
@@ -26,23 +27,24 @@ struct TileUD {
 
 // ---- Domain helpers --------------------------------------------------------
 
-static const char* domain_icon(EntityDomain d)
+static const char* domain_icon(const HaEntity& e)
 {
-    switch (d) {
-        case EntityDomain::LIGHT:         return LV_SYMBOL_CHARGE;
-        case EntityDomain::SWITCH:        return LV_SYMBOL_POWER;
-        case EntityDomain::COVER:         return LV_SYMBOL_UP;
-        case EntityDomain::CLIMATE:       return LV_SYMBOL_SETTINGS;
-        case EntityDomain::SENSOR:        return LV_SYMBOL_EYE_OPEN;
-        case EntityDomain::BINARY_SENSOR: return LV_SYMBOL_EYE_OPEN;
-        case EntityDomain::AUTOMATION:    return LV_SYMBOL_LOOP;
-        case EntityDomain::SCRIPT:        return LV_SYMBOL_PLAY;
-        case EntityDomain::SCENE:         return LV_SYMBOL_IMAGE;
-        case EntityDomain::INPUT_BOOLEAN: return LV_SYMBOL_POWER;
-        case EntityDomain::MEDIA_PLAYER:  return LV_SYMBOL_AUDIO;
-        case EntityDomain::FAN:           return LV_SYMBOL_LOOP;
-        case EntityDomain::LOCK:          return LV_SYMBOL_CLOSE;
-        default:                          return LV_SYMBOL_HOME;
+    switch (e.domain) {
+        case EntityDomain::LIGHT:         return UI_ICON_LIGHTBULB;
+        case EntityDomain::SWITCH:        return UI_ICON_POWER;
+        case EntityDomain::COVER:         return UI_ICON_GRIP_LINES;
+        case EntityDomain::CLIMATE:       return UI_ICON_THERMOMETER;
+        case EntityDomain::SENSOR:        return UI_ICON_EYE;
+        case EntityDomain::BINARY_SENSOR: return UI_ICON_EYE;
+        case EntityDomain::AUTOMATION:    return UI_ICON_REPEAT;
+        case EntityDomain::SCRIPT:        return UI_ICON_PLAY;
+        case EntityDomain::SCENE:         return UI_ICON_IMAGE;
+        case EntityDomain::INPUT_BOOLEAN: return UI_ICON_POWER;
+        case EntityDomain::MEDIA_PLAYER:  return UI_ICON_MUSIC;
+        case EntityDomain::FAN:           return UI_ICON_FAN;
+        case EntityDomain::LOCK:
+            return (strcmp(e.state, "unlocked") == 0) ? UI_ICON_LOCK_OPEN : UI_ICON_LOCK;
+        default:                          return UI_ICON_HOME;
     }
 }
 
@@ -231,10 +233,10 @@ lv_obj_t* create(lv_obj_t* parent, const HaEntity& entity, int x, int y, int w, 
     lv_obj_add_event_cb(tile, on_tile_long_press,  LV_EVENT_LONG_PRESSED,  nullptr);
     lv_obj_add_event_cb(tile, on_tile_delete,      LV_EVENT_DELETE,        nullptr);
 
-    // ---- Icon (top-left, montserrat_20) ------------------------------------
+    // ---- Icon (top-left, custom FA5 icon font 20 px) -----------------------
     ud->icon_lbl = lv_label_create(tile);
-    lv_label_set_text(ud->icon_lbl, domain_icon(entity.domain));
-    lv_obj_set_style_text_font(ud->icon_lbl, &lv_font_montserrat_20, LV_PART_MAIN);
+    lv_label_set_text(ud->icon_lbl, domain_icon(entity));
+    lv_obj_set_style_text_font(ud->icon_lbl, &lv_font_icons_20, LV_PART_MAIN);
     lv_obj_set_style_text_color(ud->icon_lbl,
         is_on(entity) ? lv_color_hex(UI_COL_ACCENT) : lv_color_hex(UI_COL_TEXT_DIM),
         LV_PART_MAIN);
@@ -279,8 +281,9 @@ void update(lv_obj_t* tile, const HaEntity& entity)
 
     lv_obj_set_style_bg_color(tile, tile_bg_color(entity, false), LV_PART_MAIN);
 
-    // Update icon colour based on new state
+    // Update icon glyph (lock open/closed) and colour based on new state
     if (ud->icon_lbl) {
+        lv_label_set_text(ud->icon_lbl, domain_icon(entity));
         lv_obj_set_style_text_color(ud->icon_lbl,
             is_on(entity) ? lv_color_hex(UI_COL_ACCENT) : lv_color_hex(UI_COL_TEXT_DIM),
             LV_PART_MAIN);
