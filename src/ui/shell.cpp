@@ -10,6 +10,7 @@
 #include "ha/entity_cache.h"
 #include "ha_area.h"
 #include "tile_widget.h"
+#include "detail_screen.h"
 
 // ----------------------------------------------------------------------------
 // Module-private state
@@ -398,6 +399,9 @@ size_t active_group()
 
 void on_entity_changed(const HaEntity& entity)
 {
+    // Forward to the detail screen if it is open for this entity
+    detail_screen::on_entity_changed(entity);
+
     if (!s_content) return;
 
     // Walk the content area's direct children; each is a tile widget.

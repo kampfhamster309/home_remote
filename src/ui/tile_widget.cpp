@@ -7,6 +7,7 @@
 #include "ui_theme.h"
 #include "ha/entity_cache.h"
 #include "ha/ha_client.h"
+#include "detail_screen.h"
 
 // ----------------------------------------------------------------------------
 // Module internals
@@ -170,6 +171,14 @@ static void on_tile_click(lv_event_t* e)
     call_toggle(*entity);
 }
 
+static void on_tile_long_press(lv_event_t* e)
+{
+    lv_obj_t* tile = lv_event_get_target(e);
+    const TileUD* ud = static_cast<const TileUD*>(lv_obj_get_user_data(tile));
+    if (!ud) return;
+    detail_screen::open(ud->entity_id);
+}
+
 static void on_tile_delete(lv_event_t* e)
 {
     lv_obj_t* tile = lv_event_get_target(e);
@@ -218,8 +227,9 @@ lv_obj_t* create(lv_obj_t* parent, const HaEntity& entity, int x, int y, int w, 
     ud->state_lbl  = nullptr;
     lv_obj_set_user_data(tile, ud);
 
-    lv_obj_add_event_cb(tile, on_tile_click,  LV_EVENT_CLICKED, nullptr);
-    lv_obj_add_event_cb(tile, on_tile_delete, LV_EVENT_DELETE,  nullptr);
+    lv_obj_add_event_cb(tile, on_tile_click,       LV_EVENT_CLICKED,       nullptr);
+    lv_obj_add_event_cb(tile, on_tile_long_press,  LV_EVENT_LONG_PRESSED,  nullptr);
+    lv_obj_add_event_cb(tile, on_tile_delete,      LV_EVENT_DELETE,        nullptr);
 
     // ---- Icon (top-left, montserrat_20) ------------------------------------
     ud->icon_lbl = lv_label_create(tile);
