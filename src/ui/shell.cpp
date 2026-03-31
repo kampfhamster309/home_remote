@@ -303,7 +303,8 @@ void create()
         lv_obj_t* lbl = lv_label_create(btn);
         lv_label_set_text(lbl, label);
         lv_label_set_long_mode(lbl, LV_LABEL_LONG_DOT);
-        lv_obj_set_width(lbl, tab_w - 8);
+        lv_obj_set_size(lbl, tab_w - 8,
+                        static_cast<lv_coord_t>(lv_font_montserrat_14.line_height));
         lv_obj_set_style_text_color(lbl, lv_color_hex(UI_COL_TEXT), LV_PART_MAIN);
         lv_obj_set_style_text_font(lbl, &lv_font_montserrat_14, LV_PART_MAIN);
         lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 0);
