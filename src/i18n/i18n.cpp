@@ -9,27 +9,26 @@
 // ----------------------------------------------------------------------------
 // String tables
 //
-// All strings are plain ASCII. German umlauts are written as digraphs
-// (ae/oe/ue/ss) because the LVGL Montserrat fonts cover ASCII only.
-// TICKET-012 will supply a custom font that renders the actual Unicode
-// characters, at which point these digraphs can be replaced with UTF-8.
+// German strings use UTF-8 encoded umlauts (ä ö ü ß etc.).
+// LVGL Montserrat fonts include Latin-1 Supplement (U+00C0–U+00FF),
+// so all German diacritics render correctly.
 // ----------------------------------------------------------------------------
 
 // clang-format off
 static constexpr const char* s_de[] = {
     "Home Remote",                                        // APP_NAME
     "Verbindung mit Home Assistant...",                   // CONNECTING_HA
-    "Keine Raeume in\nHome Assistant gefunden",           // NO_ROOMS
-    "Keine Geraete in diesem Raum",                       // NO_DEVICES
+    "Keine R\xc3\xa4ume in\nHome Assistant gefunden",     // NO_ROOMS
+    "Keine Ger\xc3\xa4te in diesem Raum",                 // NO_DEVICES
     "Einrichtungsmodus",                                  // WIFI_SETUP_MODE
     "Verbinde dein Handy mit WLAN:\nHomeRemote-Setup",    // WIFI_SETUP_CONNECT
-    "Dann Browser oeffnen.\nEine Einrichtungsseite erscheint.", // WIFI_SETUP_BROWSER
+    "Dann Browser \xc3\xb6" "ffnen.\nEine Einrichtungsseite erscheint.", // WIFI_SETUP_BROWSER
     "Verbinde...",                                        // WIFI_CONNECTING
     "WLAN: %s",                                           // WIFI_SSID_FMT
     "Verbunden",                                          // WIFI_CONNECTED
     "IP: %s",                                             // WIFI_IP_FMT
     "Kein WLAN",                                          // WIFI_NO_WIFI
-    "Keine Verbindung.\nHA nicht verfuegbar.",             // WIFI_FAIL
+    "Keine Verbindung.\nHA nicht verf\xc3\xbcgbar.",      // WIFI_FAIL
     "Helligkeit",                                         // DETAIL_BRIGHTNESS
     "Farbtemperatur",                                     // DETAIL_COLOR_TEMP
     "Solltemperatur",                                     // DETAIL_TARGET_TEMP

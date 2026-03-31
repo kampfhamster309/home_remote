@@ -208,7 +208,7 @@
 #define LV_FONT_SIMSUN_16_CJK            0
 
 /* Enable built-in symbols (always on for icon support) */
-#define LV_USE_FONT_COMPRESSED 0
+#define LV_USE_FONT_COMPRESSED 1
 #define LV_USE_FONT_SUBPX      0
 
 /* Default font used by widgets */

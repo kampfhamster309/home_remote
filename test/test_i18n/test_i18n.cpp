@@ -60,13 +60,13 @@ void test_de_connecting_ha()
 
 void test_de_no_rooms()
 {
-    TEST_ASSERT_EQUAL_STRING("Keine Raeume in\nHome Assistant gefunden",
+    TEST_ASSERT_EQUAL_STRING("Keine R\xc3\xa4ume in\nHome Assistant gefunden",
                              i18n::str(StrId::NO_ROOMS));
 }
 
 void test_de_no_devices()
 {
-    TEST_ASSERT_EQUAL_STRING("Keine Geraete in diesem Raum",
+    TEST_ASSERT_EQUAL_STRING("Keine Ger\xc3\xa4te in diesem Raum",
                              i18n::str(StrId::NO_DEVICES));
 }
 
@@ -103,7 +103,7 @@ void test_de_wifi_no_wifi()
 
 void test_de_wifi_fail()
 {
-    TEST_ASSERT_EQUAL_STRING("Keine Verbindung.\nHA nicht verfuegbar.",
+    TEST_ASSERT_EQUAL_STRING("Keine Verbindung.\nHA nicht verf\xc3\xbcgbar.",
                              i18n::str(StrId::WIFI_FAIL));
 }
 
