@@ -18,8 +18,8 @@
 
 namespace {
 
-// Maximum groups the nav bar can hold (MAX_AREAS named + 1 Other)
-static constexpr size_t UI_MAX_GROUPS = MAX_AREAS + 1;
+// Maximum groups the nav bar can hold (one per named area)
+static constexpr size_t UI_MAX_GROUPS = MAX_AREAS;
 
 // ----------------------------------------------------------------------------
 // Text helpers
@@ -349,7 +349,7 @@ void create()
         // Nav tab: abbreviated (≤5 chars after umlaut transliteration)
         char tab_label[16];
         make_tab_label(tab_label,
-                       (g && g->name[0] != '\0') ? g->name : "Other",
+                       (g && g->name[0] != '\0') ? g->name : "?",
                        sizeof(tab_label));
         const char* label = tab_label;
 

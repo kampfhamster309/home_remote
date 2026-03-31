@@ -29,10 +29,6 @@ static size_t          s_entity_info_count = 0;
 static area_cache::EntityGroup s_groups[MAX_AREAS];
 static size_t                  s_group_count = 0;
 
-// "Other" group — entities with no area after both lookups
-static area_cache::EntityGroup s_other_group;
-static bool                    s_has_other = false;
-
 // ----------------------------------------------------------------------------
 // Helpers
 // ----------------------------------------------------------------------------
@@ -117,11 +113,8 @@ void init()
     s_area_count        = 0;
     s_entity_info_count = 0;
     s_group_count       = 0;
-    s_has_other         = false;
     memset(s_areas,  0, sizeof(s_areas));
     memset(s_groups, 0, sizeof(s_groups));
-    memset(&s_other_group, 0, sizeof(s_other_group));
-    strncpy(s_other_group.name, "Other", sizeof(s_other_group.name) - 1);
 }
 
 void load_areas(const JsonArray& areas)
@@ -175,11 +168,8 @@ void load_entity_registry(const JsonArray& entries,
 void build_groups(const JsonArray& device_reg)
 {
     // Reset group state
-    s_group_count  = 0;
-    s_has_other    = false;
+    s_group_count = 0;
     memset(s_groups, 0, sizeof(s_groups));
-    memset(&s_other_group, 0, sizeof(s_other_group));
-    strncpy(s_other_group.name, "Other", sizeof(s_other_group.name) - 1);
 
     for (size_t i = 0; i < s_entity_info_count; ++i) {
         const EntityAreaInfo& info = s_entity_info[i];
@@ -188,23 +178,19 @@ void build_groups(const JsonArray& device_reg)
         const char* effective_area = resolve_area(info, device_reg);
 
         if (effective_area == nullptr) {
-            // No area found → "Other"
-            add_to_group(s_other_group, i);
-            s_has_other = true;
-        } else {
-            // Look up the human-readable name for this area
-            const char* area_name = "";
-            int ai = find_area_idx(effective_area);
-            if (ai >= 0) area_name = s_areas[ai].name;
+            // No area found → drop this entity
+            continue;
+        }
 
-            // Find or create the named group; overflow → "Other"
-            int gi = find_or_create_group(effective_area, area_name);
-            if (gi < 0) {
-                add_to_group(s_other_group, i);
-                s_has_other = true;
-            } else {
-                add_to_group(s_groups[gi], i);
-            }
+        // Look up the human-readable name for this area
+        const char* area_name = "";
+        int ai = find_area_idx(effective_area);
+        if (ai >= 0) area_name = s_areas[ai].name;
+
+        // Find or create the named group; overflow → drop
+        int gi = find_or_create_group(effective_area, area_name);
+        if (gi >= 0) {
+            add_to_group(s_groups[gi], i);
         }
     }
 }
@@ -218,13 +204,12 @@ const char* get_area_name(const char* area_id)
 const EntityGroup* get_group(size_t index)
 {
     if (index < s_group_count) return &s_groups[index];
-    if (s_has_other && index == s_group_count) return &s_other_group;
     return nullptr;
 }
 
 size_t group_count()
 {
-    return s_group_count + (s_has_other ? 1u : 0u);
+    return s_group_count;
 }
 
 } // namespace area_cache

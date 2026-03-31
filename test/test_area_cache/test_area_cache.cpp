@@ -198,11 +198,11 @@ void test_build_groups_entity_with_direct_area()
     TEST_ASSERT_EQUAL(0, g->entity_indices[0]); // index into entities[]
 }
 
-void test_build_groups_entity_no_area_goes_to_other()
+void test_build_groups_entity_no_area_is_dropped()
 {
     HaEntity entities[1] = {make_entity("light.ceiling")};
 
-    // Entity has no area and no device
+    // Entity has no area and no device — should be silently dropped
     DynamicJsonDocument er_doc(256);
     const char* er_tuples[][3] = {{"light.ceiling", "", ""}};
     area_cache::load_entity_registry(make_entity_reg(er_doc, er_tuples, 1),
@@ -212,18 +212,14 @@ void test_build_groups_entity_no_area_goes_to_other()
     JsonArray dr = dr_doc.to<JsonArray>();
     area_cache::build_groups(dr);
 
-    TEST_ASSERT_EQUAL(1, area_cache::group_count());
-    const area_cache::EntityGroup* g = area_cache::get_group(0);
-    TEST_ASSERT_NOT_NULL(g);
-    TEST_ASSERT_EQUAL_STRING("Other", g->name);
-    TEST_ASSERT_EQUAL_STRING("",      g->area_id);
+    TEST_ASSERT_EQUAL(0, area_cache::group_count());
 }
 
-void test_build_groups_entity_not_in_registry_goes_to_other()
+void test_build_groups_entity_not_in_registry_is_dropped()
 {
     HaEntity entities[1] = {make_entity("light.ceiling")};
 
-    // Entity registry doesn't mention this entity at all
+    // Entity registry doesn't mention this entity at all — should be dropped
     DynamicJsonDocument er_doc(64);
     JsonArray er = er_doc.to<JsonArray>();
     area_cache::load_entity_registry(er, entities, 1);
@@ -232,8 +228,7 @@ void test_build_groups_entity_not_in_registry_goes_to_other()
     JsonArray dr = dr_doc.to<JsonArray>();
     area_cache::build_groups(dr);
 
-    TEST_ASSERT_EQUAL(1, area_cache::group_count());
-    TEST_ASSERT_EQUAL_STRING("Other", area_cache::get_group(0)->name);
+    TEST_ASSERT_EQUAL(0, area_cache::group_count());
 }
 
 void test_build_groups_multiple_entities_same_area()
@@ -282,13 +277,13 @@ void test_build_groups_multiple_areas()
     TEST_ASSERT_EQUAL(2, area_cache::group_count());
 }
 
-void test_build_groups_other_is_last()
+void test_build_groups_unassigned_entity_dropped_assigned_kept()
 {
     DynamicJsonDocument ar_doc(256);
     const char* pairs[] = {"living_room", "Living Room"};
     area_cache::load_areas(make_areas(ar_doc, pairs));
 
-    // First entity has no area (would create "Other" first if not handled)
+    // One entity has no area (dropped), one is assigned
     HaEntity entities[2] = {make_entity("sensor.x"), make_entity("light.a")};
 
     DynamicJsonDocument er_doc(512);
@@ -302,12 +297,10 @@ void test_build_groups_other_is_last()
     DynamicJsonDocument dr_doc(64);
     area_cache::build_groups(dr_doc.to<JsonArray>());
 
-    TEST_ASSERT_EQUAL(2, area_cache::group_count());
-    // "Other" must always be last
-    const area_cache::EntityGroup* last = area_cache::get_group(area_cache::group_count() - 1);
-    TEST_ASSERT_EQUAL_STRING("Other", last->name);
-    // Named group must be first
+    // Only the assigned entity's group survives
+    TEST_ASSERT_EQUAL(1, area_cache::group_count());
     TEST_ASSERT_EQUAL_STRING("Living Room", area_cache::get_group(0)->name);
+    TEST_ASSERT_EQUAL(1, area_cache::get_group(0)->count);
 }
 
 void test_build_groups_no_other_when_all_assigned()
@@ -353,7 +346,7 @@ void test_build_groups_device_area_fallback()
     TEST_ASSERT_EQUAL_STRING("Bedroom", area_cache::get_group(0)->name);
 }
 
-void test_build_groups_device_no_area_goes_to_other()
+void test_build_groups_device_no_area_is_dropped()
 {
     HaEntity entities[1] = {make_entity("light.bedside")};
 
@@ -362,16 +355,15 @@ void test_build_groups_device_no_area_goes_to_other()
     area_cache::load_entity_registry(make_entity_reg(er_doc, er_tuples, 1),
                                      entities, 1);
 
-    // Device exists but has no area assignment
+    // Device exists but has no area assignment — entity should be dropped
     DynamicJsonDocument dr_doc(256);
     const char* dr_pairs[][2] = {{"dev_abc", ""}};
     area_cache::build_groups(make_device_reg(dr_doc, dr_pairs, 1));
 
-    TEST_ASSERT_EQUAL(1, area_cache::group_count());
-    TEST_ASSERT_EQUAL_STRING("Other", area_cache::get_group(0)->name);
+    TEST_ASSERT_EQUAL(0, area_cache::group_count());
 }
 
-void test_build_groups_device_not_in_registry_goes_to_other()
+void test_build_groups_device_not_in_registry_is_dropped()
 {
     HaEntity entities[1] = {make_entity("light.x")};
 
@@ -381,11 +373,10 @@ void test_build_groups_device_not_in_registry_goes_to_other()
                                      entities, 1);
 
     DynamicJsonDocument dr_doc(64);
-    // Empty device registry
+    // Empty device registry — entity cannot resolve area, should be dropped
     area_cache::build_groups(dr_doc.to<JsonArray>());
 
-    TEST_ASSERT_EQUAL(1, area_cache::group_count());
-    TEST_ASSERT_EQUAL_STRING("Other", area_cache::get_group(0)->name);
+    TEST_ASSERT_EQUAL(0, area_cache::group_count());
 }
 
 void test_build_groups_direct_area_wins_over_device()
@@ -552,15 +543,15 @@ int main()
     // build_groups
     RUN_TEST(test_build_groups_no_entities);
     RUN_TEST(test_build_groups_entity_with_direct_area);
-    RUN_TEST(test_build_groups_entity_no_area_goes_to_other);
-    RUN_TEST(test_build_groups_entity_not_in_registry_goes_to_other);
+    RUN_TEST(test_build_groups_entity_no_area_is_dropped);
+    RUN_TEST(test_build_groups_entity_not_in_registry_is_dropped);
     RUN_TEST(test_build_groups_multiple_entities_same_area);
     RUN_TEST(test_build_groups_multiple_areas);
-    RUN_TEST(test_build_groups_other_is_last);
+    RUN_TEST(test_build_groups_unassigned_entity_dropped_assigned_kept);
     RUN_TEST(test_build_groups_no_other_when_all_assigned);
     RUN_TEST(test_build_groups_device_area_fallback);
-    RUN_TEST(test_build_groups_device_no_area_goes_to_other);
-    RUN_TEST(test_build_groups_device_not_in_registry_goes_to_other);
+    RUN_TEST(test_build_groups_device_no_area_is_dropped);
+    RUN_TEST(test_build_groups_device_not_in_registry_is_dropped);
     RUN_TEST(test_build_groups_direct_area_wins_over_device);
     RUN_TEST(test_build_groups_entity_not_in_cache_ignored);
     RUN_TEST(test_build_groups_caps_entities_per_group);

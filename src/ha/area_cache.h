@@ -14,7 +14,7 @@
 // Grouping strategy:
 //   1. Entity has a direct area assignment in the entity registry → use it.
 //   2. Entity has no direct area but belongs to a device that has one → use device's area.
-//   3. Otherwise → "Other" fallback group (always last).
+//   3. Otherwise → entity is silently dropped (not shown in the UI).
 
 namespace area_cache {
 
@@ -23,7 +23,7 @@ namespace area_cache {
 static constexpr size_t MAX_ENTITIES_PER_GROUP = 8;
 
 struct EntityGroup {
-    char   area_id[32];                            // "" for the "Other" group
+    char   area_id[32];
     char   name[64];
     size_t entity_indices[MAX_ENTITIES_PER_GROUP]; // indices into entity_cache
     size_t count;
@@ -44,18 +44,16 @@ void load_entity_registry(const JsonArray& entries,
 
 // Finalise group layout using config/device_registry/list result.
 // Entities with no direct area inherit from their device's area.
-// Entities with no area after both lookups go into the "Other" group.
-// "Other" is always the last group.
+// Entities with no area after both lookups are silently dropped.
 void build_groups(const JsonArray& device_reg);
 
 // Area name for the given area_id, or nullptr if unknown.
 const char* get_area_name(const char* area_id);
 
 // Group at position index (0-based), or nullptr if out of range.
-// The "Other" group (if it has members) is always the last index.
 const EntityGroup* get_group(size_t index);
 
-// Total number of groups (includes "Other" if it has members).
+// Total number of groups.
 size_t group_count();
 
 } // namespace area_cache
