@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "ui_theme.h"
+#include "ui_fonts.h"
 #include "display_config.h"
 #include "ha/entity_cache.h"
 #include "ha/ha_client.h"

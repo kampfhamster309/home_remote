@@ -6,6 +6,7 @@
 #include <lvgl.h>
 
 #include "display_config.h"
+#include "ui_fonts.h"
 #include "touch_cal.h"
 #include "../config/nvs_config.h"
 

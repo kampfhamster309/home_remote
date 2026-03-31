@@ -178,8 +178,8 @@
 
 /* Enable Montserrat fonts (vector, anti-aliased) */
 #define LV_FONT_MONTSERRAT_12  0
-#define LV_FONT_MONTSERRAT_14  1
-#define LV_FONT_MONTSERRAT_16  1
+#define LV_FONT_MONTSERRAT_14  0  /* replaced by src/ui/lv_font_montserrat_14.c (+ DE umlauts) */
+#define LV_FONT_MONTSERRAT_16  0  /* replaced by src/ui/lv_font_montserrat_16.c (+ DE umlauts) */
 #define LV_FONT_MONTSERRAT_18  0
 #define LV_FONT_MONTSERRAT_20  1
 #define LV_FONT_MONTSERRAT_22  0
@@ -212,7 +212,7 @@
 #define LV_USE_FONT_SUBPX      0
 
 /* Default font used by widgets */
-#define LV_FONT_DEFAULT &lv_font_montserrat_14
+#define LV_FONT_DEFAULT &lv_font_montserrat_20  /* 14+16 replaced by custom DE builds */
 
 /* Kerning — disable to save flash */
 #define LV_USE_FONT_SUBPX 0

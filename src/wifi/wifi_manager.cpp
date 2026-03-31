@@ -7,6 +7,7 @@
 #include <lvgl.h>
 
 #include "display_config.h"
+#include "ui_fonts.h"
 #include "net_validate.h"
 #include "../config/nvs_config.h"
 #include "../i18n/i18n.h"

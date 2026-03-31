@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "ui_theme.h"
+#include "ui_fonts.h"
 #include "display_config.h"
 #include "ha/area_cache.h"
 #include "ha/entity_cache.h"
@@ -22,60 +23,22 @@ namespace {
 // Maximum groups the nav bar can hold (one per named area)
 static constexpr size_t UI_MAX_GROUPS = MAX_AREAS;
 
-// ----------------------------------------------------------------------------
-// Text helpers
-//
-// The built-in LVGL Montserrat fonts cover ASCII only (0x20–0x7F).
-// German umlauts are UTF-8 two-byte sequences starting with 0xC3.
-// We transliterate them to ASCII digraphs (ä→ae, ö→oe, ü→ue, ß→ss)
-// so they display correctly without a custom font.
-// TICKET-012 will replace this stop-gap with a properly generated font.
-// ----------------------------------------------------------------------------
-
-// Copy src into dst (max_bytes including NUL), transliterating German umlauts
-// to ASCII digraphs. Other non-ASCII bytes are silently dropped.
-static void translit_de(char* dst, const char* src, size_t max_bytes)
-{
-    size_t out = 0;
-    while (*src && out + 1 < max_bytes) {
-        const uint8_t b0 = static_cast<uint8_t>(*src);
-        if (b0 < 0x80) {                          // plain ASCII
-            dst[out++] = *src++;
-        } else if (b0 == 0xC3 && src[1]) {        // Latin-1 Supplement (U+00C0–00FF)
-            const uint8_t b1 = static_cast<uint8_t>(src[1]);
-            src += 2;
-            const char* rep = "";
-            switch (b1) {
-                case 0xA4: rep = "ae"; break;      // ä
-                case 0xB6: rep = "oe"; break;      // ö
-                case 0xBC: rep = "ue"; break;      // ü
-                case 0x84: rep = "Ae"; break;      // Ä
-                case 0x96: rep = "Oe"; break;      // Ö
-                case 0x9C: rep = "Ue"; break;      // Ü
-                case 0x9F: rep = "ss"; break;      // ß
-                default:   break;                  // other C3xx → drop
-            }
-            while (*rep && out + 1 < max_bytes) dst[out++] = *rep++;
-        } else {                                   // skip other multi-byte sequences
-            if      (b0 < 0xE0) src += 2;
-            else if (b0 < 0xF0) src += 3;
-            else                src += 4;
-        }
-    }
-    dst[out] = '\0';
-}
-
-// Build a nav-tab abbreviation: transliterate then keep at most max_chars chars.
-static constexpr size_t TAB_LABEL_MAX = 5;
+// Build a nav-tab abbreviation: keep the first TAB_LABEL_MAX bytes of a
+// UTF-8 string, but never split a multi-byte sequence.
+static constexpr size_t TAB_LABEL_MAX_BYTES = 10; // enough for 5 UTF-8 chars
 
 static void make_tab_label(char* dst, const char* src, size_t max_bytes)
 {
-    char buf[128];
-    translit_de(buf, src, sizeof(buf));
     size_t n = 0;
-    while (buf[n] && n < TAB_LABEL_MAX && n + 1 < max_bytes) {
-        dst[n] = buf[n];
-        ++n;
+    while (*src && n + 1 < max_bytes && n < TAB_LABEL_MAX_BYTES) {
+        const uint8_t b0 = static_cast<uint8_t>(*src);
+        // Determine byte width of this codepoint
+        size_t w = 1;
+        if      (b0 >= 0xF0) w = 4;
+        else if (b0 >= 0xE0) w = 3;
+        else if (b0 >= 0xC0) w = 2;
+        if (n + w >= max_bytes) break; // would overflow
+        for (size_t i = 0; i < w; ++i) dst[n++] = *src++;
     }
     dst[n] = '\0';
 }
@@ -131,10 +94,8 @@ static void set_active_group(size_t idx)
     // Update header room name (full transliterated name)
     const area_cache::EntityGroup* g = area_cache::get_group(idx);
     if (g && s_room_label) {
-        const char* raw = (g->name[0] != '\0') ? g->name : "Home";
-        char buf[sizeof(g->name) * 2]; // digraphs can double length
-        translit_de(buf, raw, sizeof(buf));
-        lv_label_set_text(s_room_label, buf);
+        lv_label_set_text(s_room_label,
+            (g->name[0] != '\0') ? g->name : "Home");
     }
 
     // Scroll active tab into view (no-op if already visible)
@@ -347,8 +308,8 @@ void create()
 
     for (size_t i = 0; i < s_group_count && i < UI_MAX_GROUPS; ++i) {
         const area_cache::EntityGroup* g = area_cache::get_group(i);
-        // Nav tab: abbreviated (≤5 chars after umlaut transliteration)
-        char tab_label[16];
+        // Nav tab: first ~5 UTF-8 chars of area name
+        char tab_label[24]; // enough for TAB_LABEL_MAX_BYTES + NUL
         make_tab_label(tab_label,
                        (g && g->name[0] != '\0') ? g->name : "?",
                        sizeof(tab_label));
