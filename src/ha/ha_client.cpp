@@ -353,11 +353,27 @@ static void handle_message(const char* payload, size_t length)
                     JsonObject entity_resp =
                         response[s_weather_entity_id].as<JsonObject>();
                     if (!entity_resp.isNull()) {
+                        // Log first forecast entry so field names are visible on serial
+                        JsonArrayConst fc = entity_resp["forecast"].as<JsonArrayConst>();
+                        if (!fc.isNull() && fc.size() > 0) {
+                            String dbg;
+                            serializeJson(fc[0], dbg);
+                            Serial.printf("[ha] forecast[0]: %s\n", dbg.c_str());
+                        } else {
+                            Serial.println("[ha] weather: forecast array empty or missing");
+                        }
                         s_on_weather(s_weather_entity_id, entity_resp);
+                    } else {
+                        Serial.printf("[ha] weather: entity '%s' not found in response\n",
+                                      s_weather_entity_id);
                     }
+                } else {
+                    Serial.println("[ha] weather: result.response is null");
                 }
+            } else if (err) {
+                Serial.printf("[ha] weather parse error: %s\n", err.c_str());
             }
-            Serial.printf("[ha] weather forecast received for %s\n",
+            Serial.printf("[ha] weather forecast response handled for %s\n",
                           s_weather_entity_id);
         }
         // else: subscribe_events ack — nothing to do.

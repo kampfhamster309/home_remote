@@ -129,11 +129,20 @@ void set_forecast_response(const char* entity_id, const JsonObject& forecast_obj
     JsonObjectConst today = forecast[0].as<JsonObjectConst>();
     if (today.isNull()) return;
 
-    if (today.containsKey("temperature")) {
-        s_data.temp_high     = today["temperature"].as<float>();
-        s_data.has_forecast  = true;
+    // HA uses "native_temperature" / "native_templow" in the Forecast TypedDict
+    // (the Python entity-level field names). Some integrations or HA versions may
+    // serialize them without the "native_" prefix. Try both so we work either way.
+    if (today.containsKey("native_temperature")) {
+        s_data.temp_high    = today["native_temperature"].as<float>();
+        s_data.has_forecast = true;
+    } else if (today.containsKey("temperature")) {
+        s_data.temp_high    = today["temperature"].as<float>();
+        s_data.has_forecast = true;
     }
-    if (today.containsKey("templow")) {
+    if (today.containsKey("native_templow")) {
+        s_data.temp_low     = today["native_templow"].as<float>();
+        s_data.has_forecast = true;
+    } else if (today.containsKey("templow")) {
         s_data.temp_low     = today["templow"].as<float>();
         s_data.has_forecast = true;
     }
