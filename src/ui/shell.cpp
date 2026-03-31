@@ -289,22 +289,18 @@ void create()
     lv_obj_align(s_room_label, LV_ALIGN_LEFT_MID, 8, 0);
     lv_label_set_text(s_room_label, "Home");
 
-    // WiFi status dot (red until update_status is called)
-    s_wifi_dot = lv_obj_create(header);
+    // WiFi status dot — use lv_led for correct circle rendering
+    s_wifi_dot = lv_led_create(header);
     lv_obj_set_size(s_wifi_dot, UI_DOT_SIZE, UI_DOT_SIZE);
-    lv_obj_set_style_radius(s_wifi_dot, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(s_wifi_dot, lv_color_hex(UI_COL_ERR), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(s_wifi_dot, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_border_width(s_wifi_dot, 0, LV_PART_MAIN);
+    lv_led_set_color(s_wifi_dot, lv_color_hex(UI_COL_ERR));
+    lv_led_on(s_wifi_dot);
     lv_obj_align(s_wifi_dot, LV_ALIGN_RIGHT_MID, -(UI_DOT_SIZE + 6) - 4, 0);
 
     // HA status dot
-    s_ha_dot = lv_obj_create(header);
+    s_ha_dot = lv_led_create(header);
     lv_obj_set_size(s_ha_dot, UI_DOT_SIZE, UI_DOT_SIZE);
-    lv_obj_set_style_radius(s_ha_dot, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(s_ha_dot, lv_color_hex(UI_COL_ERR), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(s_ha_dot, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_border_width(s_ha_dot, 0, LV_PART_MAIN);
+    lv_led_set_color(s_ha_dot, lv_color_hex(UI_COL_ERR));
+    lv_led_on(s_ha_dot);
     lv_obj_align(s_ha_dot, LV_ALIGN_RIGHT_MID, -4, 0);
 
     // ---- Content area -------------------------------------------------------
@@ -386,10 +382,8 @@ void create()
 void update_status(bool wifi_connected, bool ha_connected)
 {
     if (!s_wifi_dot || !s_ha_dot) return;
-    lv_obj_set_style_bg_color(s_wifi_dot,
-        lv_color_hex(wifi_connected ? UI_COL_OK : UI_COL_ERR), LV_PART_MAIN);
-    lv_obj_set_style_bg_color(s_ha_dot,
-        lv_color_hex(ha_connected ? UI_COL_OK : UI_COL_ERR), LV_PART_MAIN);
+    lv_led_set_color(s_wifi_dot, lv_color_hex(wifi_connected ? UI_COL_OK : UI_COL_ERR));
+    lv_led_set_color(s_ha_dot,   lv_color_hex(ha_connected  ? UI_COL_OK : UI_COL_ERR));
 }
 
 lv_obj_t* get_content()

@@ -122,9 +122,9 @@ home_remote/
 | 004 | Home Assistant WebSocket + REST client | ✅ |
 | 005 | Entity model & state cache | ✅ |
 | 006 | Device grouping by HA area | ✅ |
-| 007 | UI shell & navigation framework | — |
-| 008 | Device tile widget | — |
-| 009 | Group/room screen | — |
+| 007 | UI shell & navigation framework | ✅ |
+| 008 | Device tile widget | ✅ |
+| 009 | Group/room screen | ✅ |
 | 010 | Device detail/control screen | — |
 | 011 | Localization (DE/EN) | — |
 | 012 | Icon integration | — |

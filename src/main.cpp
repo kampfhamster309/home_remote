@@ -103,7 +103,8 @@ static void lvgl_flush_cb(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t
 static void display_init()
 {
     tft.init();
-    tft.setRotation(1);  // landscape, USB-C on the right
+    tft.setRotation(1);       // landscape, USB-C on the right
+    tft.invertDisplay(false);  // ST7789 IPS panel requires INVON for correct colors (after setRotation)
 
     pinMode(TFT_PIN_BL, OUTPUT);
     digitalWrite(TFT_PIN_BL, HIGH);
