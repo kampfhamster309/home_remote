@@ -567,7 +567,13 @@ bool call_service_ex(const char* domain,
 void request_weather_forecast(const char* entity_id, WeatherForecastCallback cb)
 {
     if (!entity_id || entity_id[0] == '\0') return;
-    if (s_state != HaState::SUBSCRIBED) return;
+    // Allow sending from any authenticated state. This function is typically
+    // called from the on_device_registry callback, which fires while the state
+    // is still FETCHING_DEVICE_REG (send_subscribe_events + SUBSCRIBED transition
+    // happen after the callback returns). The WebSocket is fully authenticated
+    // at that point so the message can be sent immediately; the response will
+    // arrive after the state has advanced to SUBSCRIBED.
+    if (s_state == HaState::DISCONNECTED || s_state == HaState::AUTHENTICATING) return;
     if (s_weather_msg_id != 0) return; // request already in flight
 
     s_on_weather = cb;
