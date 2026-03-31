@@ -49,4 +49,8 @@ size_t active_group();
 // No-op if the entity is not visible (different group or shell not built yet).
 void on_entity_changed(const HaEntity& entity);
 
+// Refresh the weather tab content after weather_cache data has changed.
+// No-op if the weather tab is not currently active or shell not built.
+void refresh_weather();
+
 } // namespace shell

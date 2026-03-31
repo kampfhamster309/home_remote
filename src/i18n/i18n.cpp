@@ -33,6 +33,11 @@ static constexpr const char* s_de[] = {
     "Farbtemperatur",                                     // DETAIL_COLOR_TEMP
     "Solltemperatur",                                     // DETAIL_TARGET_TEMP
     "Position",                                           // DETAIL_POSITION
+    "Wetter",                                             // WEATHER_TAB
+    "Hoch: ",                                             // WEATHER_HIGH
+    "Tief: ",                                             // WEATHER_LOW
+    "Regen: ",                                            // WEATHER_PRECIP
+    "Keine Wetterdaten",                                  // WEATHER_UNAVAIL
 };
 
 static constexpr const char* s_en[] = {
@@ -53,6 +58,11 @@ static constexpr const char* s_en[] = {
     "Color Temp",                                         // DETAIL_COLOR_TEMP
     "Target Temp",                                        // DETAIL_TARGET_TEMP
     "Position",                                           // DETAIL_POSITION
+    "Weather",                                            // WEATHER_TAB
+    "High: ",                                             // WEATHER_HIGH
+    "Low: ",                                              // WEATHER_LOW
+    "Rain: ",                                             // WEATHER_PRECIP
+    "No weather data",                                    // WEATHER_UNAVAIL
 };
 // clang-format on
 

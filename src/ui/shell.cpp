@@ -6,12 +6,15 @@
 
 #include "ui_theme.h"
 #include "ui_fonts.h"
+#include "ui_icons.h"
 #include "display_config.h"
 #include "ha/area_cache.h"
 #include "ha/entity_cache.h"
+#include "ha/weather_cache.h"
 #include "ha_area.h"
 #include "tile_widget.h"
 #include "detail_screen.h"
+#include "weather_screen.h"
 #include "i18n/i18n.h"
 
 // ----------------------------------------------------------------------------
@@ -33,8 +36,11 @@ static lv_obj_t* s_content    = nullptr;
 static lv_obj_t* s_nav_bar    = nullptr;
 
 static lv_obj_t* s_tab_btns[UI_MAX_GROUPS];
-static size_t    s_group_count = 0;
-static size_t    s_active_idx  = 0;
+static size_t    s_group_count      = 0;
+static size_t    s_active_idx       = 0;
+// Weather tab — only present when weather_cache::has_weather() is true.
+// s_active_idx == s_group_count means the weather tab is active.
+static lv_obj_t* s_weather_tab_btn = nullptr;
 
 // ----------------------------------------------------------------------------
 // Forward declaration (defined later in this file)
@@ -67,12 +73,15 @@ static void set_active_group(size_t idx)
 {
     if (idx >= s_group_count) return;
 
+    // Deactivate weather tab if switching away from it
+    if (s_weather_tab_btn) apply_tab_style(s_weather_tab_btn, false);
+
     // Update tab button highlight
     for (size_t i = 0; i < s_group_count; ++i) {
         if (s_tab_btns[i]) apply_tab_style(s_tab_btns[i], i == idx);
     }
 
-    // Update header room name (full transliterated name)
+    // Update header room name
     const area_cache::EntityGroup* g = area_cache::get_group(idx);
     if (g && s_room_label) {
         lv_label_set_text(s_room_label,
@@ -90,6 +99,25 @@ static void set_active_group(size_t idx)
     build_tile_grid(idx);
 }
 
+static void set_weather_tab_active()
+{
+    // Deactivate all room tabs
+    for (size_t i = 0; i < s_group_count; ++i) {
+        if (s_tab_btns[i]) apply_tab_style(s_tab_btns[i], false);
+    }
+    if (s_weather_tab_btn) apply_tab_style(s_weather_tab_btn, true);
+
+    if (s_room_label) lv_label_set_text(s_room_label, i18n::str(StrId::WEATHER_TAB));
+
+    if (s_nav_bar && s_weather_tab_btn) {
+        lv_obj_scroll_to_view(s_weather_tab_btn, LV_ANIM_ON);
+    }
+
+    s_active_idx = s_group_count; // sentinel: weather tab
+
+    weather_screen::create(s_content);
+}
+
 static void on_tab_click(lv_event_t* e)
 {
     lv_obj_t* btn = lv_event_get_target(e);
@@ -97,6 +125,11 @@ static void on_tab_click(lv_event_t* e)
     size_t idx = static_cast<size_t>(
         reinterpret_cast<uintptr_t>(lv_obj_get_user_data(btn)));
     set_active_group(idx);
+}
+
+static void on_weather_tab_click(lv_event_t* /*e*/)
+{
+    set_weather_tab_active();
 }
 
 // ----------------------------------------------------------------------------
@@ -269,9 +302,12 @@ void create()
     lv_obj_set_scrollbar_mode(s_nav_bar, LV_SCROLLBAR_MODE_OFF);
 
     // ---- Tab buttons --------------------------------------------------------
-    s_group_count = area_cache::group_count();
+    s_group_count       = area_cache::group_count();
+    s_weather_tab_btn   = nullptr;
 
-    if (s_group_count == 0) {
+    const bool has_weather = weather_cache::has_weather();
+
+    if (s_group_count == 0 && !has_weather) {
         lv_obj_t* hint = lv_label_create(s_content);
         lv_label_set_text(hint, i18n::str(StrId::NO_ROOMS));
         lv_obj_set_style_text_color(hint, lv_color_hex(UI_COL_TEXT_DIM), LV_PART_MAIN);
@@ -282,9 +318,11 @@ void create()
         return;
     }
 
-    // Tab width: spread evenly for ≤ 4 groups, fixed 76 px (scrollable) for more
-    const int tab_w = (s_group_count <= 4)
-        ? SCREEN_WIDTH / static_cast<int>(s_group_count)
+    // Tab width: spread evenly when ≤ 4 total tabs, fixed 76 px (scrollable) for more.
+    // Weather tab counts as one extra tab.
+    const size_t total_tabs = s_group_count + (has_weather ? 1 : 0);
+    const int tab_w = (total_tabs <= 4)
+        ? SCREEN_WIDTH / static_cast<int>(total_tabs)
         : UI_NAV_TAB_W;
 
     for (size_t i = 0; i < s_group_count && i < UI_MAX_GROUPS; ++i) {
@@ -312,8 +350,37 @@ void create()
         s_tab_btns[i] = btn;
     }
 
-    // Activate first group (updates header label and tab highlight)
-    set_active_group(0);
+    // ---- Weather tab (rightmost, only when a weather entity exists) ----------
+    if (has_weather) {
+        const int wx = static_cast<int>(s_group_count) * tab_w;
+
+        lv_obj_t* btn = lv_btn_create(s_nav_bar);
+        lv_obj_set_size(btn, tab_w, UI_NAV_H);
+        lv_obj_set_pos(btn, wx, 0);
+        lv_obj_set_style_pad_all(btn, 4, LV_PART_MAIN);
+        lv_obj_add_event_cb(btn, on_weather_tab_click, LV_EVENT_CLICKED, nullptr);
+        apply_tab_style(btn, false);
+
+        // Use the icon font for the weather tab label if available;
+        // fall back to the localised text label.
+        lv_obj_t* lbl = lv_label_create(btn);
+        lv_label_set_text(lbl, i18n::str(StrId::WEATHER_TAB));
+        lv_label_set_long_mode(lbl, LV_LABEL_LONG_DOT);
+        lv_obj_set_size(lbl, tab_w - 8,
+                        static_cast<lv_coord_t>(lv_font_montserrat_14.line_height));
+        lv_obj_set_style_text_color(lbl, lv_color_hex(UI_COL_TEXT), LV_PART_MAIN);
+        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_14, LV_PART_MAIN);
+        lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 0);
+
+        s_weather_tab_btn = btn;
+    }
+
+    // Activate first group if rooms exist, otherwise show weather tab
+    if (s_group_count > 0) {
+        set_active_group(0);
+    } else {
+        set_weather_tab_active();
+    }
 
     // Fade in over the loading screen; auto-delete the loading screen when done
     lv_scr_load_anim(s_screen, LV_SCR_LOAD_ANIM_FADE_ON, 300, 0, true);
@@ -334,6 +401,14 @@ lv_obj_t* get_content()
 size_t active_group()
 {
     return s_active_idx;
+}
+
+void refresh_weather()
+{
+    if (!s_content) return;
+    // Only redraw if weather tab is the active view
+    if (s_active_idx != s_group_count || !s_weather_tab_btn) return;
+    weather_screen::refresh(s_content);
 }
 
 void on_entity_changed(const HaEntity& entity)

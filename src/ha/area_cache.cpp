@@ -18,9 +18,10 @@ static size_t  s_area_count = 0;
 // Stores area_id (direct entity assignment) and device_id (for fallback lookup).
 // Heap-allocated in init() to avoid inflating BSS — 48 entries × 136 bytes = 6.5 KB.
 struct EntityAreaInfo {
-    char entity_id[64];
-    char area_id[32];    // "" if entity has no direct area assignment
-    char device_id[40];  // "" if entity has no device
+    char         entity_id[64];
+    char         area_id[32];    // "" if entity has no direct area assignment
+    char         device_id[40];  // "" if entity has no device
+    EntityDomain domain;         // copied from entity_cache; used to skip display-only domains
 };
 static EntityAreaInfo* s_entity_info       = nullptr;
 static size_t          s_entity_info_count = 0;
@@ -144,6 +145,7 @@ void load_entity_registry(const JsonArray& entries,
         EntityAreaInfo& info = s_entity_info[s_entity_info_count++];
         memset(&info, 0, sizeof(info));
         strncpy(info.entity_id, entities[i].entity_id, sizeof(info.entity_id) - 1);
+        info.domain = entities[i].domain;
     }
 
     // Update area_id / device_id for entities found in the registry.
@@ -173,6 +175,9 @@ void build_groups(const JsonArray& device_reg)
 
     for (size_t i = 0; i < s_entity_info_count; ++i) {
         const EntityAreaInfo& info = s_entity_info[i];
+
+        // Weather entities are display-only (shown in weather tab, not room tiles).
+        if (info.domain == EntityDomain::WEATHER) continue;
 
         // Resolve area (direct assignment, then device fallback)
         const char* effective_area = resolve_area(info, device_reg);

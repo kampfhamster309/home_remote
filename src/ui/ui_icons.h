@@ -27,8 +27,21 @@
 #define UI_ICON_REPEAT       "\xEF\x81\xB9"  // U+F079  fa-repeat        (automation)
 #define UI_ICON_BOLT         "\xEF\x83\xA7"  // U+F0E7  fa-bolt
 
-// External declaration for the compiled font.
-// Definition is in lv_font_icons_20.c.
+// ---- Weather icons (TICKET-012a) --------------------------------------------
+// These codepoints require regenerating lv_font_icons_20.c — see human_to_do.md.
+// Until regenerated they render as blank glyphs (no crash, just invisible icon).
+#define UI_ICON_SUN          "\xEF\x86\x85"  // U+F185  fa-sun
+#define UI_ICON_MOON         "\xEF\x86\x86"  // U+F186  fa-moon
+#define UI_ICON_CLOUD        "\xEF\x83\x82"  // U+F0C2  fa-cloud
+#define UI_ICON_CLOUD_SUN    "\xEF\x9B\x84"  // U+F6C4  fa-cloud-sun
+#define UI_ICON_CLOUD_RAIN   "\xEF\x9C\xBD"  // U+F73D  fa-cloud-rain
+#define UI_ICON_CLOUD_SHOWERS "\xEF\x9D\x80" // U+F740  fa-cloud-showers-heavy
+#define UI_ICON_SNOWFLAKE    "\xEF\x8B\x9C"  // U+F2DC  fa-snowflake
+#define UI_ICON_WIND         "\xEF\x9C\xAE"  // U+F72E  fa-wind
+#define UI_ICON_SMOG         "\xEF\x9D\x9F"  // U+F75F  fa-smog
+
+// External declarations for the compiled fonts.
+// lv_font_icons_20 definition is in lv_font_icons_20.c.
 #if defined(__cplusplus)
 extern "C" {
 #endif

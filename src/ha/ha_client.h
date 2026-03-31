@@ -42,6 +42,13 @@ using EntityRegCallback = void (*)(const JsonArray& entries);
 // `devices` is valid only during the callback.
 using DeviceRegCallback = void (*)(const JsonArray& devices);
 
+// Called once when a weather.get_forecasts response arrives.
+// `entity_id`   : the weather entity that was queried.
+// `forecast_obj`: the JSON object at result.response[entity_id]
+//                 — only valid during the callback.
+using WeatherForecastCallback = void (*)(const char* entity_id,
+                                         const JsonObject& forecast_obj);
+
 // Initialise: parse HA URL from NVS config, store callbacks.
 // Does not open the WebSocket connection yet — call tick() to drive it.
 // Registry callbacks (on_areas, on_entity_reg, on_device_reg) may be nullptr.
@@ -70,6 +77,12 @@ bool call_service_ex(const char* domain,
                      const char* service,
                      const char* entity_id,
                      const JsonObject& extra);
+
+// Request a daily weather forecast for `entity_id` via the HA WebSocket
+// call_service / weather.get_forecasts (requires HA ≥ 2023.9).
+// The callback is fired once when the response arrives.
+// No-op if not currently connected (not in SUBSCRIBED state).
+void request_weather_forecast(const char* entity_id, WeatherForecastCallback cb);
 
 // True if the WebSocket is authenticated and state_changed events are flowing.
 bool is_connected();

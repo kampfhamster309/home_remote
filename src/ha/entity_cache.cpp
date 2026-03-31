@@ -36,6 +36,7 @@ EntityDomain domain_from_id(const char* entity_id)
         { "media_player",  EntityDomain::MEDIA_PLAYER  },
         { "fan",           EntityDomain::FAN           },
         { "lock",          EntityDomain::LOCK          },
+        { "weather",       EntityDomain::WEATHER       },
     };
 
     for (const auto& e : table) {

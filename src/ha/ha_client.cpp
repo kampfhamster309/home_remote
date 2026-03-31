@@ -41,11 +41,16 @@ static ParsedUrl s_url;
 static char      s_token[256]; // HA long-lived tokens are ~183 chars; 256 is safe
 
 // User callbacks
-static ha_client::StateListCallback    s_on_states        = nullptr;
-static ha_client::StateChangedCallback s_on_state_changed = nullptr;
-static ha_client::AreaListCallback     s_on_areas         = nullptr;
-static ha_client::EntityRegCallback    s_on_entity_reg    = nullptr;
-static ha_client::DeviceRegCallback    s_on_device_reg    = nullptr;
+static ha_client::StateListCallback      s_on_states        = nullptr;
+static ha_client::StateChangedCallback   s_on_state_changed = nullptr;
+static ha_client::AreaListCallback       s_on_areas         = nullptr;
+static ha_client::EntityRegCallback      s_on_entity_reg    = nullptr;
+static ha_client::DeviceRegCallback      s_on_device_reg    = nullptr;
+static ha_client::WeatherForecastCallback s_on_weather      = nullptr;
+
+// Pending weather request tracking
+static uint32_t s_weather_msg_id = 0;              // 0 = no pending request
+static char     s_weather_entity_id[64] = {};      // entity_id that was requested
 
 // Working document for parsed content.
 // Allocated in init() (not at global construction time) because large
@@ -76,6 +81,10 @@ static DynamicJsonDocument s_flt_dreg(128);
 
 // state_changed events: filtered to just the fields entity_cache.update() uses
 static DynamicJsonDocument s_flt_event(512);
+
+// weather.get_forecasts response: keep the entire result.response subtree.
+// The entity_id key inside response is dynamic, so we can't filter deeper.
+static DynamicJsonDocument s_flt_weather(128);
 
 static bool s_filters_built = false;
 
@@ -117,6 +126,9 @@ static void build_filters()
     s_flt_event["event"]["data"]["new_state"]["attributes"]["current_position"]    = true;
     s_flt_event["event"]["data"]["new_state"]["attributes"]["current_temperature"] = true;
     s_flt_event["event"]["data"]["new_state"]["attributes"]["temperature"]         = true;
+
+    // weather.get_forecasts filter — keep entire response object
+    s_flt_weather["result"]["response"] = true;
 
     s_filters_built = true;
 
@@ -177,6 +189,20 @@ static void send_device_registry()
     send_json(doc);
 }
 
+static void send_weather_forecast(const char* entity_id)
+{
+    StaticJsonDocument<256> doc;
+    doc["id"]                        = ++s_msg_id;
+    doc["type"]                      = "call_service";
+    doc["domain"]                    = "weather";
+    doc["service"]                   = "get_forecasts";
+    doc["service_data"]["type"]      = "daily";
+    doc["target"]["entity_id"]       = entity_id;
+    doc["return_response"]           = true;
+    s_weather_msg_id                 = s_msg_id;
+    send_json(doc);
+}
+
 static void send_subscribe_events()
 {
     StaticJsonDocument<64> doc;
@@ -194,16 +220,17 @@ static void handle_message(const char* payload, size_t length)
 {
     if (!s_doc) return; // not yet initialised
 
-    // ---- Pass 1: extract type + success cheaply using a tiny filter.
+    // ---- Pass 1: extract type + success + id cheaply using a tiny filter.
     //
     // This avoids allocating a large document just to determine the message
     // type.  auth_required / auth_ok / auth_invalid are always small.  For
     // "result" and "event" messages we re-parse with the appropriate filter
     // into s_doc below.
     // -------------------------------------------------------------------------
-    StaticJsonDocument<64> meta_flt; // needs 2 slots × ~16 bytes each on 32-bit
+    StaticJsonDocument<96> meta_flt;
     meta_flt["type"]    = true;
     meta_flt["success"] = true;
+    meta_flt["id"]      = true;
 
     StaticJsonDocument<128> meta;
     if (deserializeJson(meta, payload, length,
@@ -213,8 +240,9 @@ static void handle_message(const char* payload, size_t length)
         return;
     }
 
-    const char* type = meta["type"] | "";
-    bool        succ = meta["success"] | false;
+    const char* type    = meta["type"]    | "";
+    bool        succ    = meta["success"] | false;
+    uint32_t    msg_id  = meta["id"]      | 0u;
 
     Serial.printf("[ha] msg type='%s' state=%d\n", type, (int)s_state);
 
@@ -312,7 +340,27 @@ static void handle_message(const char* payload, size_t length)
             return;
         }
 
-        // SUBSCRIBED: this is the subscribe_events ack — nothing to do.
+        // SUBSCRIBED: could be the subscribe_events ack OR a weather response.
+        if (s_weather_msg_id != 0 && msg_id == s_weather_msg_id && succ) {
+            s_weather_msg_id = 0;
+            s_doc->clear();
+            auto err = deserializeJson(*s_doc, payload, length,
+                                       DeserializationOption::Filter(s_flt_weather));
+            if (!err && s_on_weather) {
+                JsonObject response =
+                    (*s_doc)["result"]["response"].as<JsonObject>();
+                if (!response.isNull()) {
+                    JsonObject entity_resp =
+                        response[s_weather_entity_id].as<JsonObject>();
+                    if (!entity_resp.isNull()) {
+                        s_on_weather(s_weather_entity_id, entity_resp);
+                    }
+                }
+            }
+            Serial.printf("[ha] weather forecast received for %s\n",
+                          s_weather_entity_id);
+        }
+        // else: subscribe_events ack — nothing to do.
         return;
     }
 
@@ -498,6 +546,20 @@ bool call_service_ex(const char* domain,
     http.end();
 
     return (code == 200 || code == 201);
+}
+
+void request_weather_forecast(const char* entity_id, WeatherForecastCallback cb)
+{
+    if (!entity_id || entity_id[0] == '\0') return;
+    if (s_state != HaState::SUBSCRIBED) return;
+    if (s_weather_msg_id != 0) return; // request already in flight
+
+    s_on_weather = cb;
+    strncpy(s_weather_entity_id, entity_id, sizeof(s_weather_entity_id) - 1);
+    s_weather_entity_id[sizeof(s_weather_entity_id) - 1] = '\0';
+
+    Serial.printf("[ha] requesting weather forecast for %s\n", entity_id);
+    send_weather_forecast(entity_id);
 }
 
 bool is_connected()

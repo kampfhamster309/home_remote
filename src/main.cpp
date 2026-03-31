@@ -10,6 +10,7 @@
 #include "ha/ha_client.h"
 #include "ha/entity_cache.h"
 #include "ha/area_cache.h"
+#include "ha/weather_cache.h"
 #include "ui/shell.h"
 #include "i18n/i18n.h"
 
@@ -28,9 +29,23 @@ static lv_color_t buf2[SCREEN_WIDTH * LVGL_BUFFER_LINES];
 // Home Assistant callbacks
 // ----------------------------------------------------------------------------
 
+static void on_weather_forecast(const char* entity_id,
+                                const JsonObject& forecast_obj)
+{
+    weather_cache::set_forecast_response(entity_id, forecast_obj);
+    shell::refresh_weather();
+}
+
 static void on_entity_changed(const HaEntity& entity)
 {
     Serial.printf("[cache] changed: %s → %s\n", entity.entity_id, entity.state);
+
+    if (entity.domain == EntityDomain::WEATHER) {
+        weather_cache::update_from_entity(entity);
+        shell::refresh_weather();
+        return;
+    }
+
     shell::on_entity_changed(entity);
 }
 
@@ -75,9 +90,22 @@ static void on_ha_device_registry(const JsonArray& devices)
         }
     }
 
+    // Scan entity_cache for weather entities before building the shell.
+    weather_cache::init_from_cache();
+    if (weather_cache::has_weather()) {
+        Serial.printf("[weather] entity: %s\n", weather_cache::get_entity_id());
+    }
+
     // Build the shell now that groups are available.
     // This runs inside ha_client::tick() (not an ISR) so LVGL calls are safe.
     shell::create();
+
+    // Request forecast after shell is built (needs SUBSCRIBED state,
+    // which is entered immediately after device_registry is processed).
+    if (weather_cache::has_weather()) {
+        ha_client::request_weather_forecast(weather_cache::get_entity_id(),
+                                            on_weather_forecast);
+    }
 }
 
 // ----------------------------------------------------------------------------

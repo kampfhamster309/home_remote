@@ -32,6 +32,13 @@ enum class StrId : uint8_t {
     DETAIL_TARGET_TEMP, // "Target Temp"
     DETAIL_POSITION,    // "Position"
 
+    // Weather tab (TICKET-012a)
+    WEATHER_TAB,        // "Wetter" / "Weather"  (nav tab label)
+    WEATHER_HIGH,       // "Hoch: " / "High: "
+    WEATHER_LOW,        // "Tief: " / "Low: "
+    WEATHER_PRECIP,     // "Regen: " / "Rain: "
+    WEATHER_UNAVAIL,    // "Keine Wetterdaten" / "No weather data"
+
     _COUNT              // sentinel — keep last
 };
 

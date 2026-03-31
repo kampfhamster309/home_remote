@@ -24,6 +24,7 @@ enum class EntityDomain : uint8_t {
     MEDIA_PLAYER,
     FAN,
     LOCK,
+    WEATHER,
     UNKNOWN,
 };
 
