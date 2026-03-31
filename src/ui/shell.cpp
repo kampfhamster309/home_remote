@@ -23,25 +23,6 @@ namespace {
 // Maximum groups the nav bar can hold (one per named area)
 static constexpr size_t UI_MAX_GROUPS = MAX_AREAS;
 
-// Build a nav-tab abbreviation: keep the first TAB_LABEL_MAX bytes of a
-// UTF-8 string, but never split a multi-byte sequence.
-static constexpr size_t TAB_LABEL_MAX_BYTES = 10; // enough for 5 UTF-8 chars
-
-static void make_tab_label(char* dst, const char* src, size_t max_bytes)
-{
-    size_t n = 0;
-    while (*src && n + 1 < max_bytes && n < TAB_LABEL_MAX_BYTES) {
-        const uint8_t b0 = static_cast<uint8_t>(*src);
-        // Determine byte width of this codepoint
-        size_t w = 1;
-        if      (b0 >= 0xF0) w = 4;
-        else if (b0 >= 0xE0) w = 3;
-        else if (b0 >= 0xC0) w = 2;
-        if (n + w >= max_bytes) break; // would overflow
-        for (size_t i = 0; i < w; ++i) dst[n++] = *src++;
-    }
-    dst[n] = '\0';
-}
 
 // Shell LVGL objects
 static lv_obj_t* s_screen     = nullptr;
@@ -308,12 +289,7 @@ void create()
 
     for (size_t i = 0; i < s_group_count && i < UI_MAX_GROUPS; ++i) {
         const area_cache::EntityGroup* g = area_cache::get_group(i);
-        // Nav tab: first ~5 UTF-8 chars of area name
-        char tab_label[24]; // enough for TAB_LABEL_MAX_BYTES + NUL
-        make_tab_label(tab_label,
-                       (g && g->name[0] != '\0') ? g->name : "?",
-                       sizeof(tab_label));
-        const char* label = tab_label;
+        const char* label = (g && g->name[0] != '\0') ? g->name : "?";
 
         lv_obj_t* btn = lv_btn_create(s_nav_bar);
         lv_obj_set_size(btn, tab_w, UI_NAV_H);
@@ -326,7 +302,7 @@ void create()
 
         lv_obj_t* lbl = lv_label_create(btn);
         lv_label_set_text(lbl, label);
-        lv_label_set_long_mode(lbl, LV_LABEL_LONG_CLIP);
+        lv_label_set_long_mode(lbl, LV_LABEL_LONG_DOT);
         lv_obj_set_width(lbl, tab_w - 8);
         lv_obj_set_style_text_color(lbl, lv_color_hex(UI_COL_TEXT), LV_PART_MAIN);
         lv_obj_set_style_text_font(lbl, &lv_font_montserrat_14, LV_PART_MAIN);
