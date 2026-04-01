@@ -65,12 +65,8 @@ void create(lv_obj_t* parent)
 
     // ---- Forecast row (high / low / precip) ---------------------------------
     if (wd.has_forecast) {
-        // High/low on one line, e.g. "Hoch: 26  Tief: 14"
-        // Note: ° (U+00B0) is omitted here because lv_font_montserrat_14 was
-        // generated without that codepoint. Regenerate with -r 0x00B0 to restore it
-        // (see human_to_do.md for the full lv_font_conv command).
         char hl_buf[48];
-        snprintf(hl_buf, sizeof(hl_buf), "%s%.0f  %s%.0f",
+        snprintf(hl_buf, sizeof(hl_buf), "%s%.0f\xc2\xb0" "C - " "%s%.0f\xc2\xb0" "C",
                  i18n::str(StrId::WEATHER_HIGH), wd.temp_high,
                  i18n::str(StrId::WEATHER_LOW),  wd.temp_low);
         lv_obj_t* hl_lbl = lv_label_create(parent);
