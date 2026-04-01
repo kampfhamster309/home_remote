@@ -5,6 +5,7 @@
 #include <WiFi.h>
 
 #include "display_config.h"
+#include "config/nvs_config.h"
 #include "touch/touch_driver.h"
 #include "wifi/wifi_manager.h"
 #include "ha/ha_client.h"
@@ -132,11 +133,15 @@ static void lvgl_flush_cb(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t
 static void display_init()
 {
     tft.init();
-    tft.setRotation(1);       // landscape, USB-C on the right
+    tft.setRotation(1);        // landscape, USB-C on the right
     tft.invertDisplay(false);  // ST7789 IPS panel requires INVON for correct colors (after setRotation)
 
-    pinMode(TFT_PIN_BL, OUTPUT);
-    digitalWrite(TFT_PIN_BL, HIGH);
+    // Configure LEDC PWM for backlight brightness control.
+    // Must run after tft.init() — TFT_eSPI drives GPIO21 HIGH inside init()
+    // via the TFT_BL build flag; LEDC takes over GPIO ownership after AttachPin.
+    ledcSetup(BL_LEDC_CHANNEL, BL_LEDC_FREQ_HZ, BL_LEDC_BITS);
+    ledcAttachPin(TFT_PIN_BL, BL_LEDC_CHANNEL);
+    ledcWrite(BL_LEDC_CHANNEL, 255);  // full brightness until NVS setting is loaded
 
     tft.fillScreen(TFT_BLACK);
 
@@ -177,6 +182,16 @@ void setup()
     i18n::init();   // load locale from NVS before any screen is shown
 
     display_init();
+
+    // Apply stored brightness (display_init defaults to 255).
+    {
+        UiSettings ui_s;
+        if (nvs_config::load_ui_settings(ui_s)) {
+            ledcWrite(BL_LEDC_CHANNEL, ui_s.brightness);
+            Serial.printf("[display] Brightness restored: %u\n", ui_s.brightness);
+        }
+    }
+
     touch_driver::init();
     lvgl_init();
 

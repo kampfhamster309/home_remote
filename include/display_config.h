@@ -22,6 +22,13 @@
 #define TFT_PIN_BL   21   // Backlight (active HIGH)
 
 // ----------------------------------------------------------------------------
+// Backlight PWM (ESP32 LEDC peripheral, channel dedicated to TFT_PIN_BL)
+// ----------------------------------------------------------------------------
+#define BL_LEDC_CHANNEL  7     // channel 7 — free of TFT_eSPI / audio conflicts
+#define BL_LEDC_FREQ_HZ  5000  // 5 kHz — above audible range for any coil whine
+#define BL_LEDC_BITS     8     // 0–255 duty cycle
+
+// ----------------------------------------------------------------------------
 // Touch SPI pins (XPT2046) — HSPI bus (separate from display)
 // ----------------------------------------------------------------------------
 #define TOUCH_PIN_CLK  25

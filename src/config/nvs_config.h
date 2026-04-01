@@ -16,6 +16,14 @@ struct NetworkConfig {
     char ha_token[384];  // HA long-lived access token (JWT, ~150-250 chars)
 };
 
+// ----------------------------------------------------------------------------
+// UI settings (display brightness)
+// ----------------------------------------------------------------------------
+
+struct UiSettings {
+    uint8_t brightness;  // 10–255 backlight PWM duty; 255 = maximum brightness
+};
+
 namespace nvs_config {
 
     // ---- Touch calibration --------------------------------------------------
@@ -34,5 +42,14 @@ namespace nvs_config {
 
     // Removes network config from NVS (forces captive portal on next boot).
     void clear_net_config();
+
+    // ---- UI settings --------------------------------------------------------
+
+    // Returns true if stored UI settings were found and loaded into `out`.
+    // If false, `out` is unchanged — caller should apply defaults.
+    bool load_ui_settings(UiSettings& out);
+
+    // Persists UI settings to NVS.
+    void save_ui_settings(const UiSettings& s);
 
 }  // namespace nvs_config

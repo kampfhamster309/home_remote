@@ -28,9 +28,9 @@
 // Layout constants (pixels, 320 × 240 landscape)
 // ----------------------------------------------------------------------------
 
-#define UI_HEADER_H    36   // header bar height (display only, not a touch target)
+#define UI_HEADER_H    44   // header bar height — also houses the settings gear button (touch target)
 #define UI_NAV_H       44   // nav-bar height (touch target ≥ 44 px per CLAUDE.md)
-#define UI_CONTENT_H   160  // SCREEN_HEIGHT − UI_HEADER_H − UI_NAV_H
+#define UI_CONTENT_H   152  // SCREEN_HEIGHT − UI_HEADER_H − UI_NAV_H  (240 − 44 − 44)
 
 #define UI_NAV_TAB_W   76   // each nav tab button width when > 4 groups
 #define UI_DOT_SIZE    10   // status indicator dot diameter

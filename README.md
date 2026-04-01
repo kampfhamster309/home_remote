@@ -70,9 +70,10 @@ After connecting to Wi-Fi, the device:
 1. Opens a WebSocket to the HA server and authenticates.
 2. Fetches the full entity state list (`get_states`).
 3. Fetches area, entity, and device registries to resolve which room each entity belongs to.
-4. Groups entities by room (HA area). Entities with no area go into an "Other" group.
-5. Subscribes to `state_changed` events for live push updates.
-6. Control commands are sent via the HA REST API (`POST /api/services/…`).
+4. Groups entities by room (HA area). Entities with no area assignment are silently dropped.
+5. If a `weather.*` entity is present, fetches today's forecast via `weather.get_forecasts` and shows a weather tab.
+6. Subscribes to `state_changed` events for live push updates.
+7. Control commands are sent via the HA REST API (`POST /api/services/…`).
 
 ## Project Structure
 
@@ -91,16 +92,28 @@ home_remote/
 │   ├── main.cpp
 │   ├── ha/
 │   │   ├── ha_client.h/.cpp      # WebSocket + REST client
-│   │   ├── entity_cache.h/.cpp   # Flat entity state cache (max 48 entities)
-│   │   └── area_cache.h/.cpp     # Area-based entity grouping (max 12 rooms)
+│   │   ├── entity_cache.h/.cpp   # Flat entity state cache (max 40 entities)
+│   │   ├── area_cache.h/.cpp     # Area-based entity grouping (max 12 rooms)
+│   │   └── weather_cache.h/.cpp  # Weather entity state + forecast cache
 │   ├── config/
 │   │   └── nvs_config.h/.cpp     # NVS load/save for WiFi, HA, touch cal
 │   ├── touch/
 │   │   └── touch_driver.h/.cpp   # XPT2046 init, calibration UI, LVGL indev
 │   ├── wifi/
 │   │   └── wifi_manager.h/.cpp   # Captive portal, connect, reconnect
-│   ├── ui/                       # LVGL screens and widgets (TICKET-007+)
-│   └── i18n/                     # DE/EN string tables (TICKET-011+)
+│   ├── ui/
+│   │   ├── shell.h/.cpp          # Nav bar, screen switching, weather tab
+│   │   ├── tile_widget.h/.cpp    # Device tile (on/off/unavailable states)
+│   │   ├── room_screen.h/.cpp    # Room tile grid
+│   │   ├── detail_screen.h/.cpp  # Slider controls for lights, climate, covers
+│   │   ├── weather_screen.h/.cpp # Weather condition, temperature, forecast
+│   │   ├── settings_screen.h/.cpp# Language toggle, brightness, touch calibration
+│   │   ├── ui_theme.h            # Color and spacing constants
+│   │   ├── ui_fonts.h            # Custom font extern declarations
+│   │   └── ui_icons.h            # FA5 icon UTF-8 macros
+│   └── i18n/
+│       ├── i18n.h                # StrId enum and locale API
+│       └── i18n.cpp              # DE/EN string tables
 ├── lib/
 │   └── XPT2046_Touchscreen/      # Patched local copy (adds begin(SPIClass&))
 └── test/
@@ -109,7 +122,10 @@ home_remote/
     ├── test_net_validate/
     ├── test_url_parse/
     ├── test_entity_cache/
-    └── test_area_cache/
+    ├── test_area_cache/
+    ├── test_detail_screen/
+    ├── test_i18n/
+    └── test_weather_cache/
 ```
 
 ## Implementation Status
@@ -129,7 +145,7 @@ home_remote/
 | 011 | Localization (DE/EN) | ✅ |
 | 012 | Icon integration | ✅ |
 | 012a | Weather forecast tab | ✅ |
-| 013 | Settings submenu | — |
+| 013 | Settings submenu | ✅ |
 | 014 | Error handling & offline mode | — |
 | 016 | Integration testing & hardening | — |
 | 017–020 | nano_backbone OTA integration | — |

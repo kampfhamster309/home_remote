@@ -15,6 +15,7 @@
 #include "tile_widget.h"
 #include "detail_screen.h"
 #include "weather_screen.h"
+#include "settings_screen.h"
 #include "i18n/i18n.h"
 
 // ----------------------------------------------------------------------------
@@ -40,7 +41,28 @@ static size_t    s_group_count      = 0;
 static size_t    s_active_idx       = 0;
 // Weather tab — only present when weather_cache::has_weather() is true.
 // s_active_idx == s_group_count means the weather tab is active.
-static lv_obj_t* s_weather_tab_btn = nullptr;
+static lv_obj_t* s_weather_tab_btn  = nullptr;
+// Settings gear button in the header.
+static lv_obj_t* s_settings_btn     = nullptr;
+
+// ----------------------------------------------------------------------------
+// Null all object pointers — called at the start of create() so a second
+// invocation (locale change, recalibration) does not hold stale references.
+// ----------------------------------------------------------------------------
+static void reset_static_ptrs()
+{
+    s_screen          = nullptr;
+    s_room_label      = nullptr;
+    s_wifi_dot        = nullptr;
+    s_ha_dot          = nullptr;
+    s_content         = nullptr;
+    s_nav_bar         = nullptr;
+    s_weather_tab_btn = nullptr;
+    s_settings_btn    = nullptr;
+    for (size_t i = 0; i < UI_MAX_GROUPS; ++i) s_tab_btns[i] = nullptr;
+    s_group_count = 0;
+    s_active_idx  = 0;
+}
 
 // ----------------------------------------------------------------------------
 // Forward declaration (defined later in this file)
@@ -116,6 +138,11 @@ static void set_weather_tab_active()
     s_active_idx = s_group_count; // sentinel: weather tab
 
     weather_screen::create(s_content);
+}
+
+static void on_settings_click(lv_event_t* /*e*/)
+{
+    settings_screen::open();
 }
 
 static void on_tab_click(lv_event_t* e)
@@ -240,6 +267,15 @@ void show_loading()
 
 void create()
 {
+    // ---- Clean up any previous shell before rebuilding ---------------------
+    // Called on second+ invocation (locale change, recalibration).
+    // The settings screen (current active screen) will be auto-deleted by
+    // the lv_scr_load_anim at the end of this function (auto_del=true).
+    if (s_screen) {
+        lv_obj_del(s_screen);  // s_screen is not the active screen at this point
+    }
+    reset_static_ptrs();
+
     // ---- Build new shell screen ---------------------------------------------
     s_screen = lv_obj_create(nullptr);
     style_container(s_screen, lv_color_hex(UI_COL_BG));
@@ -257,10 +293,12 @@ void create()
     lv_obj_set_style_radius(header, 0, LV_PART_MAIN);
     lv_obj_clear_flag(header, LV_OBJ_FLAG_SCROLLABLE);
 
-    // Room name — left-aligned, vertically centered, clipped if too long
+    // Room name — left-aligned, vertically centered, clipped if too long.
+    // Width reserves space for: gear button (44px) + gap (4px) + 2 dots + margins.
+    // Right reservation: 4(margin) + 10(ha) + 6(gap) + 10(wifi) + 4(gap) + 44(gear) = 78px
     s_room_label = lv_label_create(header);
     lv_label_set_long_mode(s_room_label, LV_LABEL_LONG_CLIP);
-    lv_obj_set_width(s_room_label, SCREEN_WIDTH - 50); // reserve space for dots
+    lv_obj_set_width(s_room_label, SCREEN_WIDTH - 8 - 78 - 4);  // ~230 px
     lv_obj_set_style_text_color(s_room_label, lv_color_hex(UI_COL_TEXT), LV_PART_MAIN);
     lv_obj_set_style_text_font(s_room_label, &lv_font_montserrat_16, LV_PART_MAIN);
     lv_obj_align(s_room_label, LV_ALIGN_LEFT_MID, 8, 0);
@@ -279,6 +317,27 @@ void create()
     lv_led_set_color(s_ha_dot, lv_color_hex(UI_COL_ERR));
     lv_led_on(s_ha_dot);
     lv_obj_align(s_ha_dot, LV_ALIGN_RIGHT_MID, -4, 0);
+
+    // Settings gear button — to the left of the status dots.
+    // Placement: right edge 4px past wifi_dot's left edge.
+    // wifi_dot left edge is at RIGHT_MID - 20 - 10 = -30 from right → 290.
+    // gear right edge at 290 - 4 = 286 → RIGHT_MID, -34.
+    s_settings_btn = lv_btn_create(header);
+    lv_obj_remove_style_all(s_settings_btn);
+    lv_obj_set_size(s_settings_btn, UI_HEADER_H, UI_HEADER_H);  // full-height touch target
+    lv_obj_align(s_settings_btn, LV_ALIGN_RIGHT_MID, -34, 0);
+    lv_obj_set_style_bg_color(s_settings_btn, lv_color_hex(UI_COL_HEADER), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(s_settings_btn, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(s_settings_btn, lv_color_hex(UI_COL_NAV_ACTIVE),
+                              LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(s_settings_btn, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_add_event_cb(s_settings_btn, on_settings_click, LV_EVENT_CLICKED, nullptr);
+
+    lv_obj_t* gear_lbl = lv_label_create(s_settings_btn);
+    lv_label_set_text(gear_lbl, UI_ICON_COG);
+    lv_obj_set_style_text_font(gear_lbl, &lv_font_icons_20, LV_PART_MAIN);
+    lv_obj_set_style_text_color(gear_lbl, lv_color_hex(UI_COL_TEXT_DIM), LV_PART_MAIN);
+    lv_obj_align(gear_lbl, LV_ALIGN_CENTER, 0, 0);
 
     // ---- Content area -------------------------------------------------------
     s_content = lv_obj_create(s_screen);

@@ -98,4 +98,35 @@ void clear_net_config()
     prefs.end();
 }
 
+// ---- UI settings -----------------------------------------------------------
+
+static constexpr char NVS_NS_UI[]    = "ui_cfg";
+static constexpr char NVS_KEY_BRT[]  = "brightness";
+// reuses NVS_KEY_VALID ("valid") with a different namespace
+
+bool load_ui_settings(UiSettings& out)
+{
+    Preferences prefs;
+    prefs.begin(NVS_NS_UI, /* readOnly= */ true);
+
+    const bool valid = prefs.getBool(NVS_KEY_VALID, false);
+    if (valid) {
+        out.brightness = prefs.getUChar(NVS_KEY_BRT, 255);
+    }
+
+    prefs.end();
+    return valid;
+}
+
+void save_ui_settings(const UiSettings& s)
+{
+    Preferences prefs;
+    prefs.begin(NVS_NS_UI, /* readOnly= */ false);
+
+    prefs.putUChar(NVS_KEY_BRT, s.brightness);
+    prefs.putBool(NVS_KEY_VALID, true);
+
+    prefs.end();
+}
+
 }  // namespace nvs_config

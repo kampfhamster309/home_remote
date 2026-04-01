@@ -39,6 +39,12 @@ enum class StrId : uint8_t {
     WEATHER_PRECIP,     // "Regen: " / "Rain: "
     WEATHER_UNAVAIL,    // "Keine Wetterdaten" / "No weather data"
 
+    // Settings screen (TICKET-013)
+    SETTINGS_TITLE,       // "Einstellungen" / "Settings"
+    SETTINGS_LANGUAGE,    // "Sprache:" / "Language:"
+    SETTINGS_BRIGHTNESS,  // "Helligkeit:" / "Brightness:"
+    SETTINGS_RECALIBRATE, // "Touch kalibrieren" / "Calibrate Touch"
+
     _COUNT              // sentinel — keep last
 };
 

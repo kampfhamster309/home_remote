@@ -38,6 +38,10 @@ static constexpr const char* s_de[] = {
     "Tief: ",                                             // WEATHER_LOW
     "Regen: ",                                            // WEATHER_PRECIP
     "Keine Wetterdaten",                                  // WEATHER_UNAVAIL
+    "Einstellungen",                                      // SETTINGS_TITLE
+    "Sprache:",                                           // SETTINGS_LANGUAGE
+    "Helligkeit:",                                        // SETTINGS_BRIGHTNESS
+    "Touch kalibrieren",                                  // SETTINGS_RECALIBRATE
 };
 
 static constexpr const char* s_en[] = {
@@ -63,6 +67,10 @@ static constexpr const char* s_en[] = {
     "Low: ",                                              // WEATHER_LOW
     "Rain: ",                                             // WEATHER_PRECIP
     "No weather data",                                    // WEATHER_UNAVAIL
+    "Settings",                                           // SETTINGS_TITLE
+    "Language:",                                          // SETTINGS_LANGUAGE
+    "Brightness:",                                        // SETTINGS_BRIGHTNESS
+    "Calibrate Touch",                                    // SETTINGS_RECALIBRATE
 };
 // clang-format on
 
