@@ -256,6 +256,83 @@ void test_en_nb_register_btn()
 }
 
 // ----------------------------------------------------------------------------
+// OTA download & flash strings (TICKET-019)
+// ----------------------------------------------------------------------------
+
+void test_de_nb_update_btn()
+{
+    TEST_ASSERT_EQUAL_STRING("Update installieren",
+                             i18n::str(StrId::NB_UPDATE_BTN));
+}
+
+void test_de_nb_updating()
+{
+    TEST_ASSERT_EQUAL_STRING("Firmware wird aktualisiert...",
+                             i18n::str(StrId::NB_UPDATING));
+}
+
+void test_de_nb_update_ok()
+{
+    TEST_ASSERT_EQUAL_STRING("Erfolgreich. Neustart...",
+                             i18n::str(StrId::NB_UPDATE_OK));
+}
+
+void test_de_nb_update_fail_net()
+{
+    TEST_ASSERT_EQUAL_STRING("Download fehlgeschlagen",
+                             i18n::str(StrId::NB_UPDATE_FAIL_NET));
+}
+
+void test_de_nb_update_fail_hash()
+{
+    TEST_ASSERT_EQUAL_STRING("Pr\xc3\xbcfsumme ung\xc3\xbcltig",
+                             i18n::str(StrId::NB_UPDATE_FAIL_HASH));
+}
+
+void test_de_nb_update_fail_flash()
+{
+    TEST_ASSERT_EQUAL_STRING("Flash fehlgeschlagen",
+                             i18n::str(StrId::NB_UPDATE_FAIL_FLASH));
+}
+
+void test_de_nb_update_no_release()
+{
+    TEST_ASSERT_EQUAL_STRING("Kein Update verf\xc3\xbcgbar",
+                             i18n::str(StrId::NB_UPDATE_NO_RELEASE));
+}
+
+void test_en_nb_update_btn()
+{
+    i18n::set_locale(Locale::EN);
+    TEST_ASSERT_EQUAL_STRING("Install Update", i18n::str(StrId::NB_UPDATE_BTN));
+}
+
+void test_en_nb_updating()
+{
+    i18n::set_locale(Locale::EN);
+    TEST_ASSERT_EQUAL_STRING("Updating firmware...", i18n::str(StrId::NB_UPDATING));
+}
+
+void test_en_nb_update_ok()
+{
+    i18n::set_locale(Locale::EN);
+    TEST_ASSERT_EQUAL_STRING("Success. Rebooting...", i18n::str(StrId::NB_UPDATE_OK));
+}
+
+void test_en_nb_update_fail_net()
+{
+    i18n::set_locale(Locale::EN);
+    TEST_ASSERT_EQUAL_STRING("Download failed", i18n::str(StrId::NB_UPDATE_FAIL_NET));
+}
+
+void test_en_nb_update_no_release()
+{
+    i18n::set_locale(Locale::EN);
+    TEST_ASSERT_EQUAL_STRING("No update available",
+                             i18n::str(StrId::NB_UPDATE_NO_RELEASE));
+}
+
+// ----------------------------------------------------------------------------
 // Guard: out-of-range id returns ""
 // ----------------------------------------------------------------------------
 
@@ -339,6 +416,20 @@ int main()
     RUN_TEST(test_de_nb_register_btn);
     RUN_TEST(test_en_nb_status_ok);
     RUN_TEST(test_en_nb_register_btn);
+
+    // nano_backbone OTA download & flash strings (TICKET-019)
+    RUN_TEST(test_de_nb_update_btn);
+    RUN_TEST(test_de_nb_updating);
+    RUN_TEST(test_de_nb_update_ok);
+    RUN_TEST(test_de_nb_update_fail_net);
+    RUN_TEST(test_de_nb_update_fail_hash);
+    RUN_TEST(test_de_nb_update_fail_flash);
+    RUN_TEST(test_de_nb_update_no_release);
+    RUN_TEST(test_en_nb_update_btn);
+    RUN_TEST(test_en_nb_updating);
+    RUN_TEST(test_en_nb_update_ok);
+    RUN_TEST(test_en_nb_update_fail_net);
+    RUN_TEST(test_en_nb_update_no_release);
 
     // Boundary
     RUN_TEST(test_out_of_range_returns_empty);

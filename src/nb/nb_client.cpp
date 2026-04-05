@@ -4,8 +4,11 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <WiFi.h>
+#include <Update.h>
+#include <mbedtls/sha256.h>
 
 #include "../config/nvs_config.h"
+#include "semver.h"
 
 // ----------------------------------------------------------------------------
 // Constants
@@ -35,6 +38,13 @@ static NanoBackboneConfig s_cfg{};
 static bool               s_has_config = false;
 static nb_client::Status  s_status     = nb_client::Status::NOT_CONFIGURED;
 
+// Version check state
+static constexpr uint32_t VERSION_CHECK_INTERVAL_MS = 24UL * 3600UL * 1000UL;
+static volatile bool  s_update_available  = false;
+static volatile char  s_latest_version[32] = {};
+static volatile bool  s_task_running       = false;
+static uint32_t       s_last_check_ms      = 0;
+
 // Build a full API URL by appending `path` to the stored base URL.
 // Handles a trailing slash on nb_url gracefully (already stripped by portal,
 // but defensive here).
@@ -44,6 +54,54 @@ static String make_url(const char* path)
     while (url.endsWith("/")) url.remove(url.length() - 1);
     url += path;
     return url;
+}
+
+// FreeRTOS task: GET /api/v1/firmware/latest/ and compare with running version.
+// Deletes itself when done; sets s_task_running = false before exiting.
+static void version_check_task(void* /*param*/)
+{
+    HTTPClient http;
+    const String url = make_url("/api/v1/firmware/latest/?device_type=")
+                       + DEVICE_TYPE;
+
+    if (http.begin(url)) {
+        http.addHeader("Authorization", String("Api-Key ") + s_cfg.nb_api_key);
+        const int code = http.GET();
+
+        if (code == 200) {
+            // Filter: only keep "version" — the response also contains a long
+            // presigned S3 URL (~500–1000 chars) that would overflow a small doc.
+            StaticJsonDocument<16>  filter;
+            filter["version"] = true;
+            StaticJsonDocument<64>  doc;
+            const DeserializationError err = deserializeJson(
+                doc, http.getString(), DeserializationOption::Filter(filter));
+            if (!err) {
+                const char* ver = doc["version"] | "";
+                if (ver[0] != '\0') {
+                    strncpy(const_cast<char*>(s_latest_version), ver,
+                            sizeof(s_latest_version) - 1);
+                    const_cast<char*>(s_latest_version)[sizeof(s_latest_version) - 1] = '\0';
+                    s_update_available = semver_newer(ver, FIRMWARE_VERSION);
+                    Serial.printf("[nb] version check: server=%s running=%s update=%s\n",
+                                  ver, FIRMWARE_VERSION,
+                                  s_update_available ? "YES" : "no");
+                }
+            } else {
+                Serial.printf("[nb] version check: JSON error: %s\n", err.c_str());
+            }
+        } else if (code == 404) {
+            Serial.println("[nb] version check: no firmware release on server");
+        } else {
+            Serial.printf("[nb] version check: HTTP %d\n", code);
+        }
+        http.end();
+    } else {
+        Serial.println("[nb] version check: http.begin() failed");
+    }
+
+    s_task_running = false;
+    vTaskDelete(nullptr);
 }
 
 } // anonymous namespace
@@ -84,6 +142,9 @@ bool register_device()
     if (!s_has_config) return false;
     if (is_registered()) return true;  // nothing to do
 
+    // Build request body — name includes MAC suffix for uniqueness
+    const String device_name = build_device_name();
+
     HTTPClient http;
     const String url = make_url("/api/v1/devices/register/");
 
@@ -95,9 +156,6 @@ bool register_device()
         return false;
     }
     http.addHeader("Content-Type", "application/json");
-
-    // Build request body — name includes MAC suffix for uniqueness
-    const String device_name = build_device_name();
     StaticJsonDocument<128> req;
     req["name"]        = device_name.c_str();
     req["device_type"] = DEVICE_TYPE;
@@ -163,6 +221,163 @@ void clear_registration()
     nvs_config::clear_nb_api_key();
     s_status = Status::UNREGISTERED;
     Serial.println("[nb] registration cleared");
+}
+
+OtaResult start_ota_update(OtaProgressFn progress_cb)
+{
+    if (!s_has_config || !is_registered()) return OtaResult::ERR_NETWORK;
+
+    // ---- Step 1: fresh firmware/latest call to get url + sha256 ---------------
+    // The presigned URL expires after 300 s — never reuse a cached value.
+    HTTPClient meta_http;
+    const String meta_url = make_url("/api/v1/firmware/latest/?device_type=")
+                            + DEVICE_TYPE;
+
+    if (!meta_http.begin(meta_url)) return OtaResult::ERR_NETWORK;
+    meta_http.addHeader("Authorization", String("Api-Key ") + s_cfg.nb_api_key);
+    const int meta_code = meta_http.GET();
+
+    if (meta_code == 404) { meta_http.end(); return OtaResult::ERR_NO_RELEASE; }
+    if (meta_code == 503) { meta_http.end(); return OtaResult::ERR_SERVER;     }
+    if (meta_code != 200) { meta_http.end(); return OtaResult::ERR_NETWORK;    }
+
+    // Parse url + sha256.  URL can be 500-1000 chars (presigned S3).
+    DynamicJsonDocument meta_doc(2048);
+    DeserializationError meta_err = deserializeJson(meta_doc, meta_http.getString());
+    meta_http.end();
+
+    if (meta_err) return OtaResult::ERR_NETWORK;
+
+    const char* fw_url_raw    = meta_doc["url"]    | "";
+    const char* fw_sha256_raw = meta_doc["sha256"] | "";
+    if (fw_url_raw[0] == '\0' || fw_sha256_raw[0] == '\0') return OtaResult::ERR_NETWORK;
+
+    // Copy into local buffers — meta_doc goes out of scope before download ends
+    char fw_url[1024]  = {};
+    char fw_sha256[65] = {};
+    strncpy(fw_url,    fw_url_raw,    sizeof(fw_url)    - 1);
+    strncpy(fw_sha256, fw_sha256_raw, sizeof(fw_sha256) - 1);
+
+    Serial.printf("[nb] OTA: url prefix=%.40s sha256=%.8s...\n", fw_url, fw_sha256);
+
+    // ---- Step 2: open firmware download stream --------------------------------
+    HTTPClient dl_http;
+    if (!dl_http.begin(fw_url)) return OtaResult::ERR_NETWORK;
+
+    const int dl_code = dl_http.GET();
+    if (dl_code != 200) { dl_http.end(); return OtaResult::ERR_NETWORK; }
+
+    const int fw_size = dl_http.getSize();  // -1 if unknown (chunked)
+    const size_t update_size = (fw_size > 0) ? static_cast<size_t>(fw_size)
+                                             : UPDATE_SIZE_UNKNOWN;
+
+    if (!Update.begin(update_size)) {
+        Serial.printf("[nb] OTA: Update.begin() error: %s\n", Update.errorString());
+        dl_http.end();
+        return OtaResult::ERR_FLASH;
+    }
+
+    // ---- Step 3: stream, hash, and flash in one pass -------------------------
+    mbedtls_sha256_context sha_ctx;
+    mbedtls_sha256_init(&sha_ctx);
+    mbedtls_sha256_starts_ret(&sha_ctx, 0);  // 0 = SHA-256
+
+    WiFiClient* stream = dl_http.getStreamPtr();
+    uint8_t buf[512];
+    int written = 0;
+    bool stream_error = false;
+
+    while (dl_http.connected() && (fw_size < 0 || written < fw_size)) {
+        const int avail = stream->available();
+        if (avail == 0) { delay(1); continue; }
+
+        const int chunk = (avail < static_cast<int>(sizeof(buf)))
+                          ? avail : static_cast<int>(sizeof(buf));
+        const int n = stream->readBytes(buf, chunk);
+        if (n <= 0) break;
+
+        mbedtls_sha256_update_ret(&sha_ctx, buf, static_cast<size_t>(n));
+
+        if (Update.write(buf, static_cast<size_t>(n)) != static_cast<size_t>(n)) {
+            Serial.printf("[nb] OTA: Update.write() error: %s\n", Update.errorString());
+            stream_error = true;
+            break;
+        }
+        written += n;
+
+        if (progress_cb && fw_size > 0) progress_cb(written * 100 / fw_size);
+    }
+    dl_http.end();
+
+    if (stream_error) {
+        mbedtls_sha256_free(&sha_ctx);
+        Update.abort();
+        return OtaResult::ERR_FLASH;
+    }
+    if (fw_size > 0 && written != fw_size) {
+        mbedtls_sha256_free(&sha_ctx);
+        Update.abort();
+        return OtaResult::ERR_NETWORK;
+    }
+
+    // ---- Step 4: verify SHA-256 before finalising ----------------------------
+    uint8_t hash[32];
+    mbedtls_sha256_finish_ret(&sha_ctx, hash);
+    mbedtls_sha256_free(&sha_ctx);
+
+    char computed_hex[65] = {};
+    for (int i = 0; i < 32; ++i) {
+        snprintf(computed_hex + i * 2, 3, "%02x", hash[i]);
+    }
+
+    if (strcmp(computed_hex, fw_sha256) != 0) {
+        Serial.printf("[nb] OTA: SHA-256 mismatch — expected=%s computed=%s\n",
+                      fw_sha256, computed_hex);
+        Update.abort();
+        return OtaResult::ERR_CHECKSUM;
+    }
+
+    // ---- Step 5: finalise — marks new partition as boot target ---------------
+    if (!Update.end(true)) {
+        Serial.printf("[nb] OTA: Update.end() error: %s\n", Update.errorString());
+        return OtaResult::ERR_FLASH;
+    }
+
+    Serial.printf("[nb] OTA: flash complete (%d bytes). Reboot required.\n", written);
+    return OtaResult::SUCCESS;
+}
+
+void start_version_check()
+{
+    if (!s_has_config || !is_registered()) return;
+    if (s_task_running) return;
+
+    s_task_running   = true;
+    s_last_check_ms  = millis();
+    xTaskCreatePinnedToCore(version_check_task, "nb_ver_chk",
+                            4096, nullptr, 1, nullptr, 0);
+}
+
+void tick()
+{
+    if (!s_has_config || !is_registered()) return;
+    if (s_task_running) return;
+
+    const uint32_t now = millis();
+    if (s_last_check_ms != 0 &&
+        (now - s_last_check_ms) < VERSION_CHECK_INTERVAL_MS) return;
+
+    start_version_check();
+}
+
+bool is_update_available()
+{
+    return s_update_available;
+}
+
+const char* get_latest_version()
+{
+    return const_cast<const char*>(s_latest_version);
 }
 
 } // namespace nb_client

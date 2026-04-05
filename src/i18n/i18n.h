@@ -56,6 +56,15 @@ enum class StrId : uint8_t {
     NB_STATUS_FAILED,   // "OTA: Fehlgeschlagen"      / "OTA: Failed"
     NB_REGISTER_BTN,    // "OTA registrieren"         / "Register OTA"
 
+    // nano_backbone OTA download & flash (TICKET-019)
+    NB_UPDATE_BTN,        // "Update installieren"              / "Install Update"
+    NB_UPDATING,          // "Firmware wird aktualisiert..."    / "Updating firmware..."
+    NB_UPDATE_OK,         // "Erfolgreich. Neustart..."         / "Success. Rebooting..."
+    NB_UPDATE_FAIL_NET,   // "Download fehlgeschlagen"          / "Download failed"
+    NB_UPDATE_FAIL_HASH,  // "Prüfsumme ungültig"               / "Checksum invalid"
+    NB_UPDATE_FAIL_FLASH, // "Flash fehlgeschlagen"             / "Flash failed"
+    NB_UPDATE_NO_RELEASE, // "Kein Update verfügbar"            / "No update available"
+
     _COUNT              // sentinel — keep last
 };
 

@@ -45,6 +45,8 @@ static size_t    s_active_idx       = 0;
 static lv_obj_t* s_weather_tab_btn  = nullptr;
 // Settings gear button in the header.
 static lv_obj_t* s_settings_btn     = nullptr;
+// Update available badge — small accent dot on the gear button top-right corner.
+static lv_obj_t* s_update_badge     = nullptr;
 
 // Error banner — semi-transparent overlay over the content area.
 // Created on demand by update_status(); deleted when connectivity is restored.
@@ -68,6 +70,7 @@ static void reset_static_ptrs()
     s_nav_bar             = nullptr;
     s_weather_tab_btn     = nullptr;
     s_settings_btn        = nullptr;
+    s_update_badge        = nullptr;  // deleted with s_screen by lv_obj_del
     s_error_banner        = nullptr;  // deleted with s_screen by lv_obj_del
     s_current_banner_msg  = nullptr;  // force re-evaluation after next create()
     for (size_t i = 0; i < UI_MAX_GROUPS; ++i) s_tab_btns[i] = nullptr;
@@ -350,6 +353,17 @@ void create()
     lv_obj_set_style_text_color(gear_lbl, lv_color_hex(UI_COL_TEXT_DIM), LV_PART_MAIN);
     lv_obj_align(gear_lbl, LV_ALIGN_CENTER, 0, 0);
 
+    // Update available badge — 6 px accent dot, top-right corner of gear button.
+    // Hidden by default; revealed via show_update_indicator(true).
+    s_update_badge = lv_obj_create(s_settings_btn);
+    lv_obj_set_size(s_update_badge, 6, 6);
+    lv_obj_align(s_update_badge, LV_ALIGN_TOP_RIGHT, 0, 0);
+    lv_obj_set_style_bg_color(s_update_badge, lv_color_hex(UI_COL_ACCENT), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(s_update_badge, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(s_update_badge, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(s_update_badge, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+    lv_obj_add_flag(s_update_badge, LV_OBJ_FLAG_HIDDEN);
+
     // ---- Content area -------------------------------------------------------
     s_content = lv_obj_create(s_screen);
     lv_obj_set_size(s_content, SCREEN_WIDTH, UI_CONTENT_H);
@@ -539,6 +553,16 @@ void refresh_weather()
     // Only redraw if weather tab is the active view
     if (s_active_idx != s_group_count || !s_weather_tab_btn) return;
     weather_screen::refresh(s_content);
+}
+
+void show_update_indicator(bool visible)
+{
+    if (!s_update_badge) return;
+    if (visible) {
+        lv_obj_clear_flag(s_update_badge, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(s_update_badge, LV_OBJ_FLAG_HIDDEN);
+    }
 }
 
 void on_entity_changed(const HaEntity& entity)

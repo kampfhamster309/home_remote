@@ -63,6 +63,16 @@ To re-enter setup mode, long-press anywhere on the main screen and then use the 
 2. Scroll to **Long-Lived Access Tokens** → **Create Token**.
 3. Give it a name (e.g. `home-remote`) and copy the token — it is only shown once.
 
+## OTA Firmware Updates
+
+Firmware updates are delivered via [nano_backbone](https://github.com/kampfhamster309/nano_backbone) (Django OTA backend).
+
+1. On first boot the device auto-registers with the nano_backbone server (URL entered during provisioning).
+2. A version check runs on boot and every 24 hours in the background (non-blocking FreeRTOS task).
+3. When a newer firmware is detected, a badge appears on the settings gear icon.
+4. Open **Settings → Install Update** to download and flash the new firmware.  
+   The device streams the binary directly into the inactive OTA partition, verifies the SHA-256 checksum, and reboots. The running firmware is unchanged on any error.
+
 ## How It Works
 
 After connecting to Wi-Fi, the device:
@@ -87,6 +97,7 @@ home_remote/
 │   ├── touch_cal.h         # Touch calibration struct and mapping functions
 │   ├── net_validate.h      # WiFi/HA config field validators
 │   ├── url_parse.h         # HA URL parser (host, port, secure flag)
+│   ├── semver.h            # Inline semver parser and comparator
 │   └── lv_conf.h           # LVGL v8 configuration
 ├── src/
 │   ├── main.cpp
@@ -96,11 +107,13 @@ home_remote/
 │   │   ├── area_cache.h/.cpp     # Area-based entity grouping (max 12 rooms)
 │   │   └── weather_cache.h/.cpp  # Weather entity state + forecast cache
 │   ├── config/
-│   │   └── nvs_config.h/.cpp     # NVS load/save for WiFi, HA, touch cal
+│   │   └── nvs_config.h/.cpp     # NVS load/save for WiFi, HA, touch cal, nb OTA
 │   ├── touch/
 │   │   └── touch_driver.h/.cpp   # XPT2046 init, calibration UI, LVGL indev
 │   ├── wifi/
-│   │   └── wifi_manager.h/.cpp   # Captive portal, connect, reconnect
+│   │   └── wifi_manager.h/.cpp   # Captive portal (WiFi+HA+nb URL), connect, reconnect
+│   ├── nb/
+│   │   └── nb_client.h/.cpp      # nano_backbone OTA: register, version check, flash
 │   ├── ui/
 │   │   ├── shell.h/.cpp          # Nav bar, screen switching, weather tab
 │   │   ├── tile_widget.h/.cpp    # Device tile (on/off/unavailable states)
@@ -125,7 +138,8 @@ home_remote/
     ├── test_area_cache/
     ├── test_detail_screen/
     ├── test_i18n/
-    └── test_weather_cache/
+    ├── test_weather_cache/
+    └── test_version_compare/
 ```
 
 ## Implementation Status
@@ -146,6 +160,9 @@ home_remote/
 | 012 | Icon integration | ✅ |
 | 012a | Weather forecast tab | ✅ |
 | 013 | Settings submenu | ✅ |
-| 014 | Error handling & offline mode | — |
+| 014 | Error handling & offline mode | ✅ |
 | 016 | Integration testing & hardening | — |
-| 017–020 | nano_backbone OTA integration | — |
+| 017 | nano_backbone device registration | ✅ |
+| 018 | Firmware version check client | ✅ |
+| 019 | OTA download & flash | ✅ |
+| 020 | Post-update reporting & rollback | — |

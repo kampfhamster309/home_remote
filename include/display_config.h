@@ -7,9 +7,10 @@
 #define SCREEN_HEIGHT 240
 
 // LVGL draw buffer height (lines). Two buffers of this size are allocated.
-// 320 * 10 * 2 bytes = 6 400 bytes per buffer (12 800 total).
-// Reduced from 20 to keep BSS within ESP32 DRAM limits.
-#define LVGL_BUFFER_LINES 10
+// 320 * 8 * 2 bytes = 5 120 bytes per buffer (10 240 total).
+// Reduced from 10 to keep BSS within ESP32 DRAM limits after OTA support
+// (Update.h + sha256 + version check state added ~370 bytes of BSS).
+#define LVGL_BUFFER_LINES 8
 
 // ----------------------------------------------------------------------------
 // Display SPI pins (ST7789) — HSPI bus (native pins)

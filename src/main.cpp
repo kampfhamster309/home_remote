@@ -213,10 +213,14 @@ void setup()
     // nano_backbone: load config; auto-register on first boot if URL is configured
     // but no API key is stored yet.  Runs only when WiFi is up.
     nb_client::init();
-    if (wifi_manager::is_connected() &&
-        nb_client::has_config() && !nb_client::is_registered()) {
-        Serial.println("[nb] Auto-registering device...");
-        nb_client::register_device();
+    if (wifi_manager::is_connected() && nb_client::has_config()) {
+        if (!nb_client::is_registered()) {
+            Serial.println("[nb] Auto-registering device...");
+            nb_client::register_device();
+        }
+        // Kick off a firmware version check immediately after registration
+        // (or on subsequent boots if already registered).
+        nb_client::start_version_check();
     }
 
     // Show a loading screen while the HA WebSocket startup sequence runs
@@ -237,6 +241,8 @@ void loop()
     lv_timer_handler();
     wifi_manager::tick();
     ha_client::tick();
+    nb_client::tick();
     shell::update_status(wifi_manager::is_connected(), ha_client::get_connection_state());
+    if (nb_client::is_update_available()) shell::show_update_indicator(true);
     delay(5);
 }

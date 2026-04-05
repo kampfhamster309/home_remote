@@ -39,8 +39,14 @@ static lv_obj_t* s_brt_slider  = nullptr;
 static lv_obj_t* s_brt_val_lbl = nullptr;
 
 // OTA (nano_backbone) section
-static lv_obj_t* s_nb_status_lbl = nullptr;
-static lv_obj_t* s_nb_reg_btn    = nullptr;
+static lv_obj_t* s_nb_status_lbl  = nullptr;
+static lv_obj_t* s_nb_reg_btn     = nullptr;
+static lv_obj_t* s_nb_update_btn  = nullptr;
+
+// OTA progress screen (shown while flashing)
+static lv_obj_t* s_ota_screen  = nullptr;
+static lv_obj_t* s_ota_bar     = nullptr;
+static lv_obj_t* s_ota_status  = nullptr;
 
 // ----------------------------------------------------------------------------
 // Helpers
@@ -82,7 +88,7 @@ static void on_back_click(lv_event_t* /*e*/)
     s_prev_screen  = nullptr;
     s_de_btn = s_en_btn = nullptr;
     s_brt_slider = s_brt_val_lbl = nullptr;
-    s_nb_status_lbl = s_nb_reg_btn = nullptr;
+    s_nb_status_lbl = s_nb_reg_btn = s_nb_update_btn = nullptr;
     // auto_del=true: LVGL deletes the settings screen after the fade-out
     lv_scr_load_anim(prev, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
 }
@@ -97,7 +103,7 @@ static void on_de_click(lv_event_t* /*e*/)
     s_screen = s_prev_screen = nullptr;
     s_de_btn = s_en_btn = nullptr;
     s_brt_slider = s_brt_val_lbl = nullptr;
-    s_nb_status_lbl = s_nb_reg_btn = nullptr;
+    s_nb_status_lbl = s_nb_reg_btn = s_nb_update_btn = nullptr;
     shell::create();  // rebuilds all UI strings; deletes old shell + fades out this screen
 }
 
@@ -108,7 +114,7 @@ static void on_en_click(lv_event_t* /*e*/)
     s_screen = s_prev_screen = nullptr;
     s_de_btn = s_en_btn = nullptr;
     s_brt_slider = s_brt_val_lbl = nullptr;
-    s_nb_status_lbl = s_nb_reg_btn = nullptr;
+    s_nb_status_lbl = s_nb_reg_btn = s_nb_update_btn = nullptr;
     shell::create();
 }
 
@@ -154,6 +160,148 @@ static void on_nb_register_click(lv_event_t* /*e*/)
     }
 }
 
+// OTA progress callback — updates the progress screen's fill bar and label,
+// then yields to LVGL so the display stays responsive during flashing.
+// s_ota_bar is the inner fill object; its width is set proportionally to
+// (SCREEN_WIDTH - 40) pixels to represent 0–100 %.
+static constexpr int OTA_BAR_W = SCREEN_WIDTH - 40;
+
+static void ota_progress_cb(int percent)
+{
+    if (s_ota_bar) {
+        const int fill_w = OTA_BAR_W * percent / 100;
+        lv_obj_set_width(s_ota_bar, fill_w > 0 ? fill_w : 1);
+    }
+    if (s_ota_status) {
+        char buf[8];
+        snprintf(buf, sizeof(buf), "%d%%", percent);
+        lv_label_set_text(s_ota_status, buf);
+    }
+    lv_timer_handler();
+}
+
+static void on_nb_update_click(lv_event_t* /*e*/)
+{
+    // Destroy the settings screen — OTA takes over the display.
+    // Null all pointers before deleting to prevent stale refs.
+    lv_obj_t* stale = s_screen;
+    s_screen = s_prev_screen = nullptr;
+    s_de_btn = s_en_btn = nullptr;
+    s_brt_slider = s_brt_val_lbl = nullptr;
+    s_nb_status_lbl = s_nb_reg_btn = s_nb_update_btn = nullptr;
+
+    // ---- Build OTA progress screen ------------------------------------------
+    s_ota_screen = lv_obj_create(nullptr);
+    lv_obj_set_style_bg_color(s_ota_screen, lv_color_hex(UI_COL_BG), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(s_ota_screen, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(s_ota_screen, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(s_ota_screen, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(s_ota_screen, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(s_ota_screen, LV_OBJ_FLAG_SCROLLABLE);
+
+    // Title label
+    lv_obj_t* title = lv_label_create(s_ota_screen);
+    lv_label_set_text(title, i18n::str(StrId::NB_UPDATE_BTN));
+    lv_obj_set_style_text_color(title, lv_color_hex(UI_COL_TEXT), LV_PART_MAIN);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_16, LV_PART_MAIN);
+    lv_obj_align(title, LV_ALIGN_CENTER, 0, -50);
+
+    // Status / percentage label
+    s_ota_status = lv_label_create(s_ota_screen);
+    lv_label_set_text(s_ota_status, i18n::str(StrId::NB_UPDATING));
+    lv_obj_set_style_text_color(s_ota_status, lv_color_hex(UI_COL_TEXT_DIM), LV_PART_MAIN);
+    lv_obj_set_style_text_font(s_ota_status, &lv_font_montserrat_14, LV_PART_MAIN);
+    lv_obj_align(s_ota_status, LV_ALIGN_CENTER, 0, -16);
+
+    // Progress bar — two plain lv_obj containers (avoids lv_bar BSS overhead).
+    // Outer: dark track.  Inner (s_ota_bar): accent fill, width updated by callback.
+    lv_obj_t* bar_track = lv_obj_create(s_ota_screen);
+    lv_obj_set_size(bar_track, OTA_BAR_W, 16);
+    lv_obj_align(bar_track, LV_ALIGN_CENTER, 0, 16);
+    lv_obj_set_style_bg_color(bar_track, lv_color_hex(UI_COL_SURFACE), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(bar_track, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(bar_track, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(bar_track, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(bar_track, 4, LV_PART_MAIN);
+    lv_obj_clear_flag(bar_track, LV_OBJ_FLAG_SCROLLABLE);
+
+    s_ota_bar = lv_obj_create(bar_track);
+    lv_obj_set_size(s_ota_bar, 1, 16);  // starts at 1 px wide (0 is invalid)
+    lv_obj_set_pos(s_ota_bar, 0, 0);
+    lv_obj_set_style_bg_color(s_ota_bar, lv_color_hex(UI_COL_ACCENT), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(s_ota_bar, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(s_ota_bar, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(s_ota_bar, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(s_ota_bar, 4, LV_PART_MAIN);
+    lv_obj_clear_flag(s_ota_bar, LV_OBJ_FLAG_SCROLLABLE);
+
+    // Switch to the OTA screen; delete the settings screen behind it.
+    lv_scr_load(s_ota_screen);
+    if (stale) lv_obj_del(stale);
+    lv_timer_handler();  // render the progress screen before blocking
+
+    // ---- Perform the OTA update (blocking) ----------------------------------
+    const nb_client::OtaResult result = nb_client::start_ota_update(ota_progress_cb);
+
+    // ---- Handle result -------------------------------------------------------
+    const char* result_msg;
+    switch (result) {
+        case nb_client::OtaResult::SUCCESS:
+            result_msg = i18n::str(StrId::NB_UPDATE_OK);       break;
+        case nb_client::OtaResult::ERR_NO_RELEASE:
+            result_msg = i18n::str(StrId::NB_UPDATE_NO_RELEASE); break;
+        case nb_client::OtaResult::ERR_CHECKSUM:
+            result_msg = i18n::str(StrId::NB_UPDATE_FAIL_HASH); break;
+        case nb_client::OtaResult::ERR_FLASH:
+            result_msg = i18n::str(StrId::NB_UPDATE_FAIL_FLASH); break;
+        default:
+            result_msg = i18n::str(StrId::NB_UPDATE_FAIL_NET);  break;
+    }
+
+    if (s_ota_status) lv_label_set_text(s_ota_status, result_msg);
+    if (s_ota_bar)    lv_obj_set_width(s_ota_bar,
+                          result == nb_client::OtaResult::SUCCESS ? OTA_BAR_W : 1);
+    lv_timer_handler();
+
+    if (result == nb_client::OtaResult::SUCCESS) {
+        // Brief pause so the success message is readable, then reboot.
+#ifdef ARDUINO
+        delay(1500);
+        ESP.restart();
+#endif
+        return;
+    }
+
+    // On failure: show a back button so the user can return to the main shell.
+    lv_obj_t* back_btn = lv_btn_create(s_ota_screen);
+    lv_obj_set_size(back_btn, SCREEN_WIDTH - 40, 44);
+    lv_obj_align(back_btn, LV_ALIGN_CENTER, 0, 60);
+    lv_obj_set_style_bg_color(back_btn, lv_color_hex(UI_COL_SURFACE), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(back_btn, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(back_btn, lv_color_hex(UI_COL_NAV_ACTIVE),
+                              LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(back_btn, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_style_border_width(back_btn, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(back_btn, lv_color_hex(UI_COL_BORDER), LV_PART_MAIN);
+    lv_obj_set_style_radius(back_btn, 4, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(back_btn, 0, LV_PART_MAIN);
+    lv_obj_add_event_cb(back_btn, [](lv_event_t*) {
+        // Delete OTA screen and rebuild the main shell.
+        lv_obj_t* ota = s_ota_screen;
+        s_ota_screen = s_ota_bar = s_ota_status = nullptr;
+        if (ota) lv_obj_del(ota);
+        shell::create();
+    }, LV_EVENT_CLICKED, nullptr);
+
+    lv_obj_t* back_lbl = lv_label_create(back_btn);
+    lv_label_set_text(back_lbl, LV_SYMBOL_LEFT);
+    lv_obj_set_style_text_color(back_lbl, lv_color_hex(UI_COL_ACCENT), LV_PART_MAIN);
+    lv_obj_set_style_text_font(back_lbl, &lv_font_montserrat_20, LV_PART_MAIN);
+    lv_obj_align(back_lbl, LV_ALIGN_CENTER, 0, 0);
+
+    lv_timer_handler();
+}
+
 static void on_recalibrate_click(lv_event_t* /*e*/)
 {
     // Async-delete the settings screen before handing control to the
@@ -164,7 +312,7 @@ static void on_recalibrate_click(lv_event_t* /*e*/)
     s_screen = s_prev_screen = nullptr;
     s_de_btn = s_en_btn = nullptr;
     s_brt_slider = s_brt_val_lbl = nullptr;
-    s_nb_status_lbl = s_nb_reg_btn = nullptr;
+    s_nb_status_lbl = s_nb_reg_btn = s_nb_update_btn = nullptr;
 
     lv_obj_del_async(stale);  // deferred — safe from inside event callback
     if (prev) lv_obj_del_async(prev);  // stale previous shell screen
@@ -401,23 +549,29 @@ void open()
         lv_obj_set_style_text_font(s_nb_status_lbl, &lv_font_montserrat_14, LV_PART_MAIN);
         lv_obj_set_pos(s_nb_status_lbl, 10, 210);
 
+        // Helper: create a standard OTA action button at the given y position
+        auto make_ota_btn = [&](int y) -> lv_obj_t* {
+            lv_obj_t* btn = lv_btn_create(content);
+            lv_obj_set_size(btn, SCREEN_WIDTH - 20, 44);
+            lv_obj_set_pos(btn, 10, y);
+            lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_SURFACE), LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN);
+            lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_NAV_ACTIVE),
+                                      LV_PART_MAIN | LV_STATE_PRESSED);
+            lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_PRESSED);
+            lv_obj_set_style_border_width(btn, 1, LV_PART_MAIN);
+            lv_obj_set_style_border_color(btn, lv_color_hex(UI_COL_BORDER), LV_PART_MAIN);
+            lv_obj_set_style_radius(btn, 4, LV_PART_MAIN);
+            lv_obj_set_style_shadow_width(btn, 0, LV_PART_MAIN);
+            return btn;
+        };
+
+        int next_btn_y = 232;
+
         // "Register OTA" button — shown when configured but not registered (or failed)
         if (nb_status == nb_client::Status::UNREGISTERED ||
             nb_status == nb_client::Status::REG_FAILED) {
-            static constexpr int NB_BTN_W = SCREEN_WIDTH - 20;
-            static constexpr int NB_BTN_H = 44;
-            s_nb_reg_btn = lv_btn_create(content);
-            lv_obj_set_size(s_nb_reg_btn, NB_BTN_W, NB_BTN_H);
-            lv_obj_set_pos(s_nb_reg_btn, 10, 232);
-            lv_obj_set_style_bg_color(s_nb_reg_btn, lv_color_hex(UI_COL_SURFACE), LV_PART_MAIN);
-            lv_obj_set_style_bg_opa(s_nb_reg_btn, LV_OPA_COVER, LV_PART_MAIN);
-            lv_obj_set_style_bg_color(s_nb_reg_btn, lv_color_hex(UI_COL_NAV_ACTIVE),
-                                      LV_PART_MAIN | LV_STATE_PRESSED);
-            lv_obj_set_style_bg_opa(s_nb_reg_btn, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_PRESSED);
-            lv_obj_set_style_border_width(s_nb_reg_btn, 1, LV_PART_MAIN);
-            lv_obj_set_style_border_color(s_nb_reg_btn, lv_color_hex(UI_COL_BORDER), LV_PART_MAIN);
-            lv_obj_set_style_radius(s_nb_reg_btn, 4, LV_PART_MAIN);
-            lv_obj_set_style_shadow_width(s_nb_reg_btn, 0, LV_PART_MAIN);
+            s_nb_reg_btn = make_ota_btn(next_btn_y);
             lv_obj_add_event_cb(s_nb_reg_btn, on_nb_register_click, LV_EVENT_CLICKED, nullptr);
 
             lv_obj_t* nb_lbl = lv_label_create(s_nb_reg_btn);
@@ -425,6 +579,19 @@ void open()
             lv_obj_set_style_text_color(nb_lbl, lv_color_hex(UI_COL_TEXT), LV_PART_MAIN);
             lv_obj_set_style_text_font(nb_lbl, &lv_font_montserrat_16, LV_PART_MAIN);
             lv_obj_align(nb_lbl, LV_ALIGN_CENTER, 0, 0);
+            next_btn_y += 52;
+        }
+
+        // "Install Update" button — shown when registered and an update is available
+        if (nb_status == nb_client::Status::REGISTERED && nb_client::is_update_available()) {
+            s_nb_update_btn = make_ota_btn(next_btn_y);
+            lv_obj_add_event_cb(s_nb_update_btn, on_nb_update_click, LV_EVENT_CLICKED, nullptr);
+
+            lv_obj_t* upd_lbl = lv_label_create(s_nb_update_btn);
+            lv_label_set_text(upd_lbl, i18n::str(StrId::NB_UPDATE_BTN));
+            lv_obj_set_style_text_color(upd_lbl, lv_color_hex(UI_COL_ACCENT), LV_PART_MAIN);
+            lv_obj_set_style_text_font(upd_lbl, &lv_font_montserrat_16, LV_PART_MAIN);
+            lv_obj_align(upd_lbl, LV_ALIGN_CENTER, 0, 0);
         }
     }
 

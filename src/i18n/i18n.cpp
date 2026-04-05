@@ -49,6 +49,13 @@ static constexpr const char* s_de[] = {
     "OTA: Registriert",                                   // NB_STATUS_OK
     "OTA: Fehlgeschlagen",                                // NB_STATUS_FAILED
     "OTA registrieren",                                   // NB_REGISTER_BTN
+    "Update installieren",                                // NB_UPDATE_BTN
+    "Firmware wird aktualisiert...",                      // NB_UPDATING
+    "Erfolgreich. Neustart...",                           // NB_UPDATE_OK
+    "Download fehlgeschlagen",                            // NB_UPDATE_FAIL_NET
+    "Pr\xc3\xbcfsumme ung\xc3\xbcltig",                  // NB_UPDATE_FAIL_HASH
+    "Flash fehlgeschlagen",                               // NB_UPDATE_FAIL_FLASH
+    "Kein Update verf\xc3\xbcgbar",                       // NB_UPDATE_NO_RELEASE
 };
 
 static constexpr const char* s_en[] = {
@@ -85,6 +92,13 @@ static constexpr const char* s_en[] = {
     "OTA: Registered",                                    // NB_STATUS_OK
     "OTA: Failed",                                        // NB_STATUS_FAILED
     "Register OTA",                                       // NB_REGISTER_BTN
+    "Install Update",                                     // NB_UPDATE_BTN
+    "Updating firmware...",                               // NB_UPDATING
+    "Success. Rebooting...",                              // NB_UPDATE_OK
+    "Download failed",                                    // NB_UPDATE_FAIL_NET
+    "Checksum invalid",                                   // NB_UPDATE_FAIL_HASH
+    "Flash failed",                                       // NB_UPDATE_FAIL_FLASH
+    "No update available",                                // NB_UPDATE_NO_RELEASE
 };
 // clang-format on
 

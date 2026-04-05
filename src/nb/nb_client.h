@@ -52,4 +52,55 @@ bool ping();
 // to register_device().  The nb_url is preserved.
 void clear_registration();
 
+// ----------------------------------------------------------------------------
+// OTA download & flash (TICKET-019)
+// ----------------------------------------------------------------------------
+
+enum class OtaResult {
+    SUCCESS,          // flashed OK — caller must reboot
+    ERR_NO_RELEASE,   // server returned 404 (no firmware for this device type)
+    ERR_SERVER,       // server returned 503 (firmware file missing from S3)
+    ERR_NETWORK,      // HTTP / connection / incomplete download error
+    ERR_CHECKSUM,     // SHA-256 mismatch — update aborted
+    ERR_FLASH,        // Update.h write/end failed
+};
+
+// Callback type for download progress.  Called with 0..100 during streaming.
+// Implementation should call lv_timer_handler() to keep the display live.
+typedef void (*OtaProgressFn)(int percent);
+
+// Perform a full OTA update cycle (blocking):
+//   1. Fresh GET /api/v1/firmware/latest/ to obtain presigned url + sha256
+//   2. Stream firmware into the inactive OTA partition via Update.h
+//   3. Verify SHA-256; abort if mismatch
+//   4. Finalise partition on success
+//
+// On SUCCESS the caller must call ESP.restart() — the new partition is already
+// marked as the boot target.
+// On any error the running firmware is unchanged.
+// progress_cb may be nullptr.
+OtaResult start_ota_update(OtaProgressFn progress_cb = nullptr);
+
+// ----------------------------------------------------------------------------
+// Firmware version check (TICKET-018)
+// ----------------------------------------------------------------------------
+
+// Trigger an immediate non-blocking version check via a FreeRTOS task
+// (Core 0, 4 KB stack).  Safe to call from setup() after registration.
+// No-op if not configured, not registered, or a check is already running.
+void start_version_check();
+
+// Call from loop() every iteration.  Triggers a version check if the 24-hour
+// interval has elapsed since the last successful check.  No-op if a check is
+// already in progress.
+void tick();
+
+// Returns true if the last completed version check found a newer firmware
+// version on the server than the running FIRMWARE_VERSION.
+bool is_update_available();
+
+// Returns the latest version string received from the server (e.g. "1.2.0"),
+// or an empty string if no check has completed yet.
+const char* get_latest_version();
+
 } // namespace nb_client

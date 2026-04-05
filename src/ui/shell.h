@@ -56,4 +56,9 @@ void on_entity_changed(const HaEntity& entity);
 // No-op if the weather tab is not currently active or shell not built.
 void refresh_weather();
 
+// Show or hide the firmware update available badge on the settings gear button.
+// The badge is a small accent-coloured dot in the top-right corner of the gear.
+// No-op if the shell has not been built yet (create() not yet called).
+void show_update_indicator(bool visible);
+
 } // namespace shell
