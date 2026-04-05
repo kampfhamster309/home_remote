@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <lvgl.h>
 #include <esp_sleep.h>
+#include <esp_wifi.h>
 #include <driver/gpio.h>
 #include <driver/rtc_io.h>
 
@@ -26,6 +27,16 @@ static void do_sleep()
 
     // Blank the display before sleeping.
     ledcWrite(BL_LEDC_CHANNEL, 0);
+
+    // Enable WiFi modem sleep so the radio stays associated with the AP while
+    // the CPU is halted.  Without this, the WiFi radio can power off entirely
+    // during light sleep and the AP will deauthenticate the client after its
+    // idle timeout (~30–60 s on most home routers), forcing a full re-association
+    // on wake.  WIFI_PS_MIN_MODEM keeps the radio active at DTIM beacon
+    // intervals (typically every 100 ms) so the AP never drops the client.
+    // Restored to WIFI_PS_NONE after wake so the HA WebSocket operates without
+    // the ~100 ms modem-sleep latency while the user is actively using the device.
+    esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
 
     // Configure GPIO wakeup on touch IRQ (XPT2046 pulls the line LOW on touch).
     gpio_wakeup_enable(static_cast<gpio_num_t>(TOUCH_PIN_IRQ),
@@ -52,6 +63,10 @@ static void do_sleep()
     gpio_wakeup_disable(static_cast<gpio_num_t>(TOUCH_PIN_IRQ));
     rtc_gpio_deinit(static_cast<gpio_num_t>(TOUCH_PIN_IRQ));
     touch_driver::on_wake();
+
+    // Restore full radio-on mode so the HA WebSocket receives events with
+    // minimal latency while the user is interacting with the device.
+    esp_wifi_set_ps(WIFI_PS_NONE);
 
     // millis() is backed by esp_timer which continues through light sleep, so
     // LVGL's tick is accurate.  However, lv_disp_get_inactive_time() would now
