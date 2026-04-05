@@ -186,11 +186,11 @@ home_remote/
 | 018 | Firmware version check client | ✅ |
 | 019 | OTA download & flash | ✅ |
 | 020 | Post-update reporting & rollback | ✅ |
-| 021 | Hardware assessment & power architecture | — |
+| 021 | Hardware assembly & baseline measurement | — |
 | 022 | Light sleep & wake implementation | ✅ |
-| 023 | Adaptive WiFi & HA sync strategy | — |
-| 024 | Battery mode indicator | ✅² |
-| 025 | Mobile mode UI adaptations | — |
+| 023 | ~~Adaptive WiFi & HA sync strategy~~ (superseded by 022) | — |
+| 024 | "On battery" mode indicator | ✅² |
+| 025 | Mobile mode UI adaptations (settings toggle, OTA gate) | — |
 | 026 | Power budget validation & tuning | — |
 
 ¹ Automated portion complete (heap diagnostics, test checklists). On-device soak
