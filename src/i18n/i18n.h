@@ -45,6 +45,10 @@ enum class StrId : uint8_t {
     SETTINGS_BRIGHTNESS,  // "Helligkeit:" / "Brightness:"
     SETTINGS_RECALIBRATE, // "Touch kalibrieren" / "Calibrate Touch"
 
+    // Error / offline states (TICKET-014)
+    ERR_HA_UNREACHABLE, // "HA nicht erreichbar" / "HA unreachable"
+    ERR_AUTH_FAILED,    // "HA-Token ungültig\nNeu einrichten" / "Invalid HA token\nReconfigure in Settings"
+
     _COUNT              // sentinel — keep last
 };
 

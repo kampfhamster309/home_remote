@@ -182,6 +182,37 @@ void test_en_detail_color_temp()
 }
 
 // ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
+// Error state strings (TICKET-014)
+// ----------------------------------------------------------------------------
+
+void test_de_err_ha_unreachable()
+{
+    TEST_ASSERT_EQUAL_STRING("HA nicht erreichbar",
+                             i18n::str(StrId::ERR_HA_UNREACHABLE));
+}
+
+void test_de_err_auth_failed()
+{
+    TEST_ASSERT_EQUAL_STRING("HA-Token ung\xc3\xbcltig\nNeu einrichten",
+                             i18n::str(StrId::ERR_AUTH_FAILED));
+}
+
+void test_en_err_ha_unreachable()
+{
+    i18n::set_locale(Locale::EN);
+    TEST_ASSERT_EQUAL_STRING("HA unreachable",
+                             i18n::str(StrId::ERR_HA_UNREACHABLE));
+}
+
+void test_en_err_auth_failed()
+{
+    i18n::set_locale(Locale::EN);
+    TEST_ASSERT_EQUAL_STRING("Invalid HA token\nReconfigure in Settings",
+                             i18n::str(StrId::ERR_AUTH_FAILED));
+}
+
+// ----------------------------------------------------------------------------
 // Guard: out-of-range id returns ""
 // ----------------------------------------------------------------------------
 
@@ -250,6 +281,12 @@ int main()
     RUN_TEST(test_en_wifi_no_wifi);
     RUN_TEST(test_en_detail_brightness);
     RUN_TEST(test_en_detail_color_temp);
+
+    // Error state strings (TICKET-014)
+    RUN_TEST(test_de_err_ha_unreachable);
+    RUN_TEST(test_de_err_auth_failed);
+    RUN_TEST(test_en_err_ha_unreachable);
+    RUN_TEST(test_en_err_auth_failed);
 
     // Boundary
     RUN_TEST(test_out_of_range_returns_empty);

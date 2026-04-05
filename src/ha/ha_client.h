@@ -87,4 +87,14 @@ void request_weather_forecast(const char* entity_id, WeatherForecastCallback cb)
 // True if the WebSocket is authenticated and state_changed events are flowing.
 bool is_connected();
 
+// Granular connection state exposed to the UI layer for error banners.
+enum class ConnectionState {
+    CONNECTED,   // SUBSCRIBED — live state_changed events flowing
+    CONNECTING,  // TCP connecting / authenticating / fetching registries / backoff
+    AUTH_FAILED, // auth_invalid received — wrong token, needs re-provisioning
+};
+
+// Return the current connection state.
+ConnectionState get_connection_state();
+
 }  // namespace ha_client

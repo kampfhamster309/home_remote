@@ -8,6 +8,7 @@
 #include "ui_fonts.h"
 #include "ui_icons.h"
 #include "display_config.h"
+#include "ha/ha_client.h"
 #include "ha/area_cache.h"
 #include "ha/entity_cache.h"
 #include "ha/weather_cache.h"
@@ -45,20 +46,30 @@ static lv_obj_t* s_weather_tab_btn  = nullptr;
 // Settings gear button in the header.
 static lv_obj_t* s_settings_btn     = nullptr;
 
+// Error banner — semi-transparent overlay over the content area.
+// Created on demand by update_status(); deleted when connectivity is restored.
+static lv_obj_t*   s_error_banner       = nullptr;
+// Pointer to the currently displayed banner message (from i18n string table).
+// Pointer comparison is valid because i18n::str() always returns the same
+// static char* for a given StrId + locale.
+static const char* s_current_banner_msg = nullptr;
+
 // ----------------------------------------------------------------------------
 // Null all object pointers — called at the start of create() so a second
 // invocation (locale change, recalibration) does not hold stale references.
 // ----------------------------------------------------------------------------
 static void reset_static_ptrs()
 {
-    s_screen          = nullptr;
-    s_room_label      = nullptr;
-    s_wifi_dot        = nullptr;
-    s_ha_dot          = nullptr;
-    s_content         = nullptr;
-    s_nav_bar         = nullptr;
-    s_weather_tab_btn = nullptr;
-    s_settings_btn    = nullptr;
+    s_screen              = nullptr;
+    s_room_label          = nullptr;
+    s_wifi_dot            = nullptr;
+    s_ha_dot              = nullptr;
+    s_content             = nullptr;
+    s_nav_bar             = nullptr;
+    s_weather_tab_btn     = nullptr;
+    s_settings_btn        = nullptr;
+    s_error_banner        = nullptr;  // deleted with s_screen by lv_obj_del
+    s_current_banner_msg  = nullptr;  // force re-evaluation after next create()
     for (size_t i = 0; i < UI_MAX_GROUPS; ++i) s_tab_btns[i] = nullptr;
     s_group_count = 0;
     s_active_idx  = 0;
@@ -445,11 +456,71 @@ void create()
     lv_scr_load_anim(s_screen, LV_SCR_LOAD_ANIM_FADE_ON, 300, 0, true);
 }
 
-void update_status(bool wifi_connected, bool ha_connected)
+void update_status(bool wifi_connected, ha_client::ConnectionState ha_state)
 {
-    if (!s_wifi_dot || !s_ha_dot) return;
-    lv_led_set_color(s_wifi_dot, lv_color_hex(wifi_connected ? UI_COL_OK : UI_COL_ERR));
-    lv_led_set_color(s_ha_dot,   lv_color_hex(ha_connected  ? UI_COL_OK : UI_COL_ERR));
+    // Update status dots (safe to call before shell is built)
+    if (s_wifi_dot) {
+        lv_led_set_color(s_wifi_dot,
+            lv_color_hex(wifi_connected ? UI_COL_OK : UI_COL_ERR));
+    }
+    if (s_ha_dot) {
+        lv_led_set_color(s_ha_dot,
+            lv_color_hex(ha_state == ha_client::ConnectionState::CONNECTED
+                         ? UI_COL_OK : UI_COL_ERR));
+    }
+
+    // Banner is only shown once the shell exists (not on boot screens)
+    if (!s_screen) return;
+
+    // Determine the error message for the current state.
+    // Priority: auth failure > no wifi > HA unreachable.
+    const char* msg = nullptr;
+    if (ha_state == ha_client::ConnectionState::AUTH_FAILED) {
+        msg = i18n::str(StrId::ERR_AUTH_FAILED);
+    } else if (!wifi_connected) {
+        msg = i18n::str(StrId::WIFI_NO_WIFI);
+    } else if (ha_state != ha_client::ConnectionState::CONNECTED) {
+        msg = i18n::str(StrId::ERR_HA_UNREACHABLE);
+    }
+
+    // Skip rebuild if the message has not changed
+    if (msg == s_current_banner_msg) return;
+    s_current_banner_msg = msg;
+
+    if (!msg) {
+        // Connectivity restored — remove the banner
+        if (s_error_banner) {
+            lv_obj_del(s_error_banner);
+            s_error_banner = nullptr;
+        }
+        return;
+    }
+
+    // Create or reuse the banner overlay
+    if (!s_error_banner) {
+        s_error_banner = lv_obj_create(s_screen);
+        lv_obj_set_size(s_error_banner, SCREEN_WIDTH, UI_CONTENT_H);
+        lv_obj_set_pos(s_error_banner, 0, UI_HEADER_H);
+        lv_obj_set_style_bg_color(s_error_banner, lv_color_hex(UI_COL_SURFACE), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(s_error_banner, 215, LV_PART_MAIN); // ~84 % opaque
+        lv_obj_set_style_border_width(s_error_banner, 0, LV_PART_MAIN);
+        lv_obj_set_style_pad_all(s_error_banner, 8, LV_PART_MAIN);
+        lv_obj_set_style_radius(s_error_banner, 0, LV_PART_MAIN);
+        lv_obj_clear_flag(s_error_banner, LV_OBJ_FLAG_SCROLLABLE);
+
+        lv_obj_t* lbl = lv_label_create(s_error_banner);
+        lv_obj_set_style_text_color(lbl, lv_color_hex(UI_COL_ERR), LV_PART_MAIN);
+        lv_obj_set_style_text_font(lbl, &lv_font_montserrat_14, LV_PART_MAIN);
+        lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+        lv_obj_set_width(lbl, SCREEN_WIDTH - 16);
+        lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 0);
+        lv_label_set_text(lbl, msg);
+    } else {
+        // Banner already visible — update text and bring to foreground
+        lv_obj_t* lbl = lv_obj_get_child(s_error_banner, 0);
+        if (lbl) lv_label_set_text(lbl, msg);
+        lv_obj_move_foreground(s_error_banner);
+    }
 }
 
 lv_obj_t* get_content()

@@ -227,6 +227,6 @@ void loop()
     lv_timer_handler();
     wifi_manager::tick();
     ha_client::tick();
-    shell::update_status(wifi_manager::is_connected(), ha_client::is_connected());
+    shell::update_status(wifi_manager::is_connected(), ha_client::get_connection_state());
     delay(5);
 }

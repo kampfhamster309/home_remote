@@ -52,6 +52,10 @@ static ha_client::WeatherForecastCallback s_on_weather      = nullptr;
 static uint32_t s_weather_msg_id = 0;              // 0 = no pending request
 static char     s_weather_entity_id[64] = {};      // entity_id that was requested
 
+// True after auth_invalid is received.  Cleared on the next successful TCP connect.
+// Tracked separately so it persists through the DISCONNECTED state.
+static bool s_auth_failed = false;
+
 // Working document for parsed content.
 // Allocated in init() (not at global construction time) because large
 // malloc() calls in global constructors fail on ESP32 before the heap
@@ -261,6 +265,7 @@ static void handle_message(const char* payload, size_t length)
 
     if (strcmp(type, "auth_invalid") == 0) {
         Serial.println("[ha] auth_invalid — check HA long-lived token");
+        s_auth_failed  = true;
         s_ws.disconnect();
         s_state        = HaState::DISCONNECTED;
         s_backoff_idx  = BACKOFF_COUNT - 1; // lock to max backoff
@@ -411,6 +416,7 @@ static void on_ws_event(WStype_t type, uint8_t* payload, size_t length)
     switch (type) {
         case WStype_CONNECTED:
             Serial.println("[ha] WS connected");
+            s_auth_failed = false; // clear any prior auth failure on new TCP connection
             s_state       = HaState::AUTHENTICATING;
             s_backoff_idx = 0;
             break;
@@ -587,6 +593,13 @@ void request_weather_forecast(const char* entity_id, WeatherForecastCallback cb)
 bool is_connected()
 {
     return s_state == HaState::SUBSCRIBED;
+}
+
+ConnectionState get_connection_state()
+{
+    if (s_auth_failed)                  return ConnectionState::AUTH_FAILED;
+    if (s_state == HaState::SUBSCRIBED) return ConnectionState::CONNECTED;
+    return                                     ConnectionState::CONNECTING;
 }
 
 } // namespace ha_client

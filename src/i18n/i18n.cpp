@@ -42,6 +42,8 @@ static constexpr const char* s_de[] = {
     "Sprache:",                                           // SETTINGS_LANGUAGE
     "Helligkeit:",                                        // SETTINGS_BRIGHTNESS
     "Touch kalibrieren",                                  // SETTINGS_RECALIBRATE
+    "HA nicht erreichbar",                                // ERR_HA_UNREACHABLE
+    "HA-Token ung\xc3\xbcltig\nNeu einrichten",          // ERR_AUTH_FAILED
 };
 
 static constexpr const char* s_en[] = {
@@ -71,6 +73,8 @@ static constexpr const char* s_en[] = {
     "Language:",                                          // SETTINGS_LANGUAGE
     "Brightness:",                                        // SETTINGS_BRIGHTNESS
     "Calibrate Touch",                                    // SETTINGS_RECALIBRATE
+    "HA unreachable",                                     // ERR_HA_UNREACHABLE
+    "Invalid HA token\nReconfigure in Settings",          // ERR_AUTH_FAILED
 };
 // clang-format on
 

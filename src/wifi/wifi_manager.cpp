@@ -18,18 +18,24 @@
 
 static constexpr char     AP_SSID[]            = "HomeRemote-Setup";
 static constexpr uint8_t  DNS_PORT             = 53;
-static constexpr uint32_t CONNECT_TIMEOUT_MS   = 15000UL;
-static constexpr uint32_t RECONNECT_INTERVAL_MS = 30000UL;
+static constexpr uint32_t CONNECT_TIMEOUT_MS = 15000UL;
+
+// Exponential backoff for explicit reconnect attempts in tick().
+// WiFi.setAutoReconnect(true) handles low-level retries; tick() is a
+// belt-and-braces fallback for prolonged disconnections.
+static const uint32_t RECONNECT_BACKOFF_MS[]  = {30000UL, 60000UL, 120000UL, 300000UL};
+static constexpr size_t RECONNECT_BACKOFF_COUNT = 4;
 
 // ----------------------------------------------------------------------------
 // Module state
 // ----------------------------------------------------------------------------
 
 static NetworkConfig s_config{};
-static bool          s_has_config      = false;
+static bool          s_has_config         = false;
 static WebServer     s_server(80);
 static DNSServer     s_dns;
-static unsigned long s_last_reconnect_ms = 0;
+static unsigned long s_last_reconnect_ms  = 0;
+static size_t        s_reconnect_backoff_idx = 0;
 
 // ----------------------------------------------------------------------------
 // Captive portal HTML
@@ -347,17 +353,31 @@ void enter_setup_mode()
 void tick()
 {
     if (WiFi.status() == WL_CONNECTED) {
-        s_last_reconnect_ms = millis();
+        s_last_reconnect_ms      = millis();
+        s_reconnect_backoff_idx  = 0;  // reset backoff on successful connection
         return;
     }
 
     if (!s_has_config) return;
 
+    const uint32_t interval =
+        RECONNECT_BACKOFF_MS[s_reconnect_backoff_idx < RECONNECT_BACKOFF_COUNT
+                             ? s_reconnect_backoff_idx
+                             : RECONNECT_BACKOFF_COUNT - 1];
+
     const unsigned long now = millis();
-    if (now - s_last_reconnect_ms < RECONNECT_INTERVAL_MS) return;
+    if (now - s_last_reconnect_ms < interval) return;
 
     s_last_reconnect_ms = now;
-    Serial.println("[wifi] Disconnected — attempting reconnect...");
+    // Advance backoff index (capped at last entry)
+    if (s_reconnect_backoff_idx < RECONNECT_BACKOFF_COUNT - 1) {
+        ++s_reconnect_backoff_idx;
+    }
+
+    Serial.printf("[wifi] Disconnected — reconnect attempt (next in %lu s)\n",
+                  RECONNECT_BACKOFF_MS[s_reconnect_backoff_idx < RECONNECT_BACKOFF_COUNT
+                                       ? s_reconnect_backoff_idx
+                                       : RECONNECT_BACKOFF_COUNT - 1] / 1000UL);
     WiFi.reconnect();
 }
 

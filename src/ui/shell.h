@@ -3,6 +3,7 @@
 #include <lvgl.h>
 #include <cstddef>
 #include "ha_entity.h"
+#include "ha/ha_client.h"
 
 // Main application shell.
 //
@@ -33,8 +34,10 @@ void show_loading();
 void create();
 
 // Update the WiFi and HA status dots in the header.
-// Safe to call before create() — no-op until shell exists.
-void update_status(bool wifi_connected, bool ha_connected);
+// Shows or hides an error banner over the content area based on the
+// connection state.  Safe to call before create() — dots update is a no-op
+// until the shell is built; banner logic is suppressed until create() returns.
+void update_status(bool wifi_connected, ha_client::ConnectionState ha_state);
 
 // LVGL object for the content area of the currently active group.
 // Returns nullptr when no shell exists.
