@@ -34,6 +34,24 @@ Connect the board via USB-C, then:
 pio run -e cyd --target upload
 ```
 
+### Build a Release Binary for OTA Upload
+
+`build_release.sh` builds the firmware and copies the output to a versioned file
+ready for upload to the nano_backbone backend:
+
+```bash
+./build_release.sh
+# Output: home_remote_v1.0.0.bin
+```
+
+The version is read automatically from the `FIRMWARE_VERSION` build flag in
+`platformio.ini` — bump it there before building a release.
+
+> **Note:** The script calls `pio` directly. If PlatformIO is not on your `PATH`
+> (e.g. installed via the VS Code extension rather than `pip`), update the `pio`
+> call in `build_release.sh` to the full path for your setup, for example
+> `~/.platformio/penv/bin/pio`.
+
 ### Serial Monitor
 
 ```bash
