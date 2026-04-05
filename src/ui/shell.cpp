@@ -285,11 +285,20 @@ void show_loading()
 void create()
 {
     // ---- Clean up any previous shell before rebuilding ---------------------
-    // Called on second+ invocation (locale change, recalibration).
-    // The settings screen (current active screen) will be auto-deleted by
-    // the lv_scr_load_anim at the end of this function (auto_del=true).
-    if (s_screen) {
-        lv_obj_del(s_screen);  // s_screen is not the active screen at this point
+    // Three invocation paths:
+    //   1. First boot:       s_screen == nullptr → nothing to delete.
+    //   2. Locale change / recalibration:
+    //        The settings screen or blank cal screen is currently active.
+    //        s_screen is NOT the active screen → delete it now; the active
+    //        screen is cleaned up by lv_scr_load_anim(auto_del=true) below.
+    //   3. HA reconnect after sleep:
+    //        s_screen IS the currently active screen. Calling lv_obj_del() on
+    //        the active screen leaves disp->act_scr as a dangling pointer and
+    //        the next lv_scr_load_anim dereferences it → LoadProhibited crash.
+    //        Skip the explicit delete; lv_scr_load_anim(auto_del=true) will
+    //        delete the old screen safely once the new one has faded in.
+    if (s_screen && lv_scr_act() != s_screen) {
+        lv_obj_del(s_screen);
     }
     reset_static_ptrs();
 
