@@ -1,6 +1,7 @@
 #include "ha_client.h"
 
 #include <Arduino.h>
+#include <WiFi.h>
 #include <WebSocketsClient.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
@@ -511,6 +512,17 @@ void tick()
     if (!s_url.valid) return;
 
     if (s_state == HaState::DISCONNECTED && millis() >= s_reconnect_at) {
+        // Gate on WiFi readiness. After light sleep, the WiFi stack needs
+        // ~500 ms to re-associate before TCP connects can succeed. Without
+        // this check, begin() is called immediately, the TCP connect fails
+        // with EHOSTUNREACH, WStype_DISCONNECTED fires again, and the cycle
+        // repeats dozens of times per second until WiFi comes up. Checking
+        // WL_CONNECTED here suppresses that spam and lets the first connect
+        // attempt succeed immediately once the stack is ready.
+        if (WiFi.status() != WL_CONNECTED) {
+            s_reconnect_at = millis() + 100;  // re-check in 100 ms
+            return;
+        }
         // Set sentinel so we don't call begin() again until WStype_DISCONNECTED
         // resets s_reconnect_at via the backoff logic in on_ws_event.
         s_reconnect_at = UINT32_MAX;
