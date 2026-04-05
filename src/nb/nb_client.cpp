@@ -112,7 +112,7 @@ static void version_check_task(void* /*param*/)
 // Returns true on HTTP 201.
 static bool report_event_internal(const char* event)
 {
-    if (!s_has_config || s_status != Status::REGISTERED) return false;
+    if (!s_has_config || s_status != nb_client::Status::REGISTERED) return false;
 
     HTTPClient http;
     const String url = make_url("/api/v1/devices/events/");
