@@ -14,6 +14,7 @@
 #include "display_config.h"
 #include "config/nvs_config.h"
 #include "touch/touch_driver.h"
+#include "nb/nb_client.h"
 #include "i18n/i18n.h"
 #include "shell.h"
 
@@ -36,6 +37,10 @@ static lv_obj_t* s_en_btn = nullptr;
 // Brightness slider and its value label
 static lv_obj_t* s_brt_slider  = nullptr;
 static lv_obj_t* s_brt_val_lbl = nullptr;
+
+// OTA (nano_backbone) section
+static lv_obj_t* s_nb_status_lbl = nullptr;
+static lv_obj_t* s_nb_reg_btn    = nullptr;
 
 // ----------------------------------------------------------------------------
 // Helpers
@@ -77,6 +82,7 @@ static void on_back_click(lv_event_t* /*e*/)
     s_prev_screen  = nullptr;
     s_de_btn = s_en_btn = nullptr;
     s_brt_slider = s_brt_val_lbl = nullptr;
+    s_nb_status_lbl = s_nb_reg_btn = nullptr;
     // auto_del=true: LVGL deletes the settings screen after the fade-out
     lv_scr_load_anim(prev, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
 }
@@ -91,6 +97,7 @@ static void on_de_click(lv_event_t* /*e*/)
     s_screen = s_prev_screen = nullptr;
     s_de_btn = s_en_btn = nullptr;
     s_brt_slider = s_brt_val_lbl = nullptr;
+    s_nb_status_lbl = s_nb_reg_btn = nullptr;
     shell::create();  // rebuilds all UI strings; deletes old shell + fades out this screen
 }
 
@@ -101,6 +108,7 @@ static void on_en_click(lv_event_t* /*e*/)
     s_screen = s_prev_screen = nullptr;
     s_de_btn = s_en_btn = nullptr;
     s_brt_slider = s_brt_val_lbl = nullptr;
+    s_nb_status_lbl = s_nb_reg_btn = nullptr;
     shell::create();
 }
 
@@ -124,6 +132,28 @@ static void on_brightness_released(lv_event_t* e)
     nvs_config::save_ui_settings(s);
 }
 
+static void on_nb_register_click(lv_event_t* /*e*/)
+{
+    // Disable button and show "..." while the blocking HTTP call runs
+    if (s_nb_reg_btn)    lv_obj_add_state(s_nb_reg_btn, LV_STATE_DISABLED);
+    if (s_nb_status_lbl) lv_label_set_text(s_nb_status_lbl, "...");
+    lv_timer_handler();  // flush the UI update before blocking
+
+    const bool ok = nb_client::register_device();
+
+    if (s_nb_status_lbl) {
+        lv_label_set_text(s_nb_status_lbl,
+            i18n::str(ok ? StrId::NB_STATUS_OK : StrId::NB_STATUS_FAILED));
+    }
+    if (s_nb_reg_btn) {
+        if (ok) {
+            lv_obj_add_flag(s_nb_reg_btn, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_clear_state(s_nb_reg_btn, LV_STATE_DISABLED);
+        }
+    }
+}
+
 static void on_recalibrate_click(lv_event_t* /*e*/)
 {
     // Async-delete the settings screen before handing control to the
@@ -134,6 +164,7 @@ static void on_recalibrate_click(lv_event_t* /*e*/)
     s_screen = s_prev_screen = nullptr;
     s_de_btn = s_en_btn = nullptr;
     s_brt_slider = s_brt_val_lbl = nullptr;
+    s_nb_status_lbl = s_nb_reg_btn = nullptr;
 
     lv_obj_del_async(stale);  // deferred — safe from inside event callback
     if (prev) lv_obj_del_async(prev);  // stale previous shell screen
@@ -213,7 +244,7 @@ void open()
     lv_obj_set_style_text_font(title_lbl, &lv_font_montserrat_16, LV_PART_MAIN);
     lv_obj_align(title_lbl, LV_ALIGN_LEFT_MID, SETTINGS_HEADER_H + 4, 0);
 
-    // ---- Content area (below header) ---------------------------------------
+    // ---- Content area (below header, vertically scrollable) ----------------
     const int CONTENT_H = SCREEN_HEIGHT - SETTINGS_HEADER_H;
     lv_obj_t* content = lv_obj_create(s_screen);
     lv_obj_set_size(content, SCREEN_WIDTH, CONTENT_H);
@@ -223,7 +254,9 @@ void open()
     lv_obj_set_style_border_width(content, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(content, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(content, 0, LV_PART_MAIN);
-    lv_obj_clear_flag(content, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(content, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scroll_dir(content, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(content, LV_SCROLLBAR_MODE_OFF);
 
     // ---- Language toggle ---------------------------------------------------
     // Label
@@ -335,6 +368,65 @@ void open()
     lv_obj_set_style_text_color(recal_lbl, lv_color_hex(UI_COL_TEXT), LV_PART_MAIN);
     lv_obj_set_style_text_font(recal_lbl, &lv_font_montserrat_16, LV_PART_MAIN);
     lv_obj_align(recal_lbl, LV_ALIGN_CENTER, 0, 0);
+
+    // ---- nano_backbone OTA section -----------------------------------------
+    // Only rendered when nb_url is configured; always shown when configured
+    // so the user can see registration status and re-trigger if needed.
+    {
+        const nb_client::Status nb_status = nb_client::get_status();
+
+        // Thin separator line
+        lv_obj_t* sep = lv_obj_create(content);
+        lv_obj_set_size(sep, SCREEN_WIDTH - 20, 1);
+        lv_obj_set_pos(sep, 10, 200);
+        lv_obj_set_style_bg_color(sep, lv_color_hex(UI_COL_BORDER), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(sep, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_border_width(sep, 0, LV_PART_MAIN);
+
+        // Status label
+        const char* status_str;
+        switch (nb_status) {
+            case nb_client::Status::REGISTERED:     status_str = i18n::str(StrId::NB_STATUS_OK);      break;
+            case nb_client::Status::UNREGISTERED:   status_str = i18n::str(StrId::NB_STATUS_UNREG);   break;
+            case nb_client::Status::REG_FAILED:     status_str = i18n::str(StrId::NB_STATUS_FAILED);  break;
+            default:                                status_str = i18n::str(StrId::NB_STATUS_NOT_CFG); break;
+        }
+
+        s_nb_status_lbl = lv_label_create(content);
+        lv_label_set_text(s_nb_status_lbl, status_str);
+        lv_obj_set_style_text_color(s_nb_status_lbl,
+            lv_color_hex(nb_status == nb_client::Status::REGISTERED
+                         ? UI_COL_OK : UI_COL_TEXT_DIM),
+            LV_PART_MAIN);
+        lv_obj_set_style_text_font(s_nb_status_lbl, &lv_font_montserrat_14, LV_PART_MAIN);
+        lv_obj_set_pos(s_nb_status_lbl, 10, 210);
+
+        // "Register OTA" button — shown when configured but not registered (or failed)
+        if (nb_status == nb_client::Status::UNREGISTERED ||
+            nb_status == nb_client::Status::REG_FAILED) {
+            static constexpr int NB_BTN_W = SCREEN_WIDTH - 20;
+            static constexpr int NB_BTN_H = 44;
+            s_nb_reg_btn = lv_btn_create(content);
+            lv_obj_set_size(s_nb_reg_btn, NB_BTN_W, NB_BTN_H);
+            lv_obj_set_pos(s_nb_reg_btn, 10, 232);
+            lv_obj_set_style_bg_color(s_nb_reg_btn, lv_color_hex(UI_COL_SURFACE), LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(s_nb_reg_btn, LV_OPA_COVER, LV_PART_MAIN);
+            lv_obj_set_style_bg_color(s_nb_reg_btn, lv_color_hex(UI_COL_NAV_ACTIVE),
+                                      LV_PART_MAIN | LV_STATE_PRESSED);
+            lv_obj_set_style_bg_opa(s_nb_reg_btn, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_PRESSED);
+            lv_obj_set_style_border_width(s_nb_reg_btn, 1, LV_PART_MAIN);
+            lv_obj_set_style_border_color(s_nb_reg_btn, lv_color_hex(UI_COL_BORDER), LV_PART_MAIN);
+            lv_obj_set_style_radius(s_nb_reg_btn, 4, LV_PART_MAIN);
+            lv_obj_set_style_shadow_width(s_nb_reg_btn, 0, LV_PART_MAIN);
+            lv_obj_add_event_cb(s_nb_reg_btn, on_nb_register_click, LV_EVENT_CLICKED, nullptr);
+
+            lv_obj_t* nb_lbl = lv_label_create(s_nb_reg_btn);
+            lv_label_set_text(nb_lbl, i18n::str(StrId::NB_REGISTER_BTN));
+            lv_obj_set_style_text_color(nb_lbl, lv_color_hex(UI_COL_TEXT), LV_PART_MAIN);
+            lv_obj_set_style_text_font(nb_lbl, &lv_font_montserrat_16, LV_PART_MAIN);
+            lv_obj_align(nb_lbl, LV_ALIGN_CENTER, 0, 0);
+        }
+    }
 
     // Fade in; don't auto-delete the shell screen behind us — we need it
     // for the back button's lv_scr_load_anim target.

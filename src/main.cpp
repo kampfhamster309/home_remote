@@ -12,6 +12,7 @@
 #include "ha/entity_cache.h"
 #include "ha/area_cache.h"
 #include "ha/weather_cache.h"
+#include "nb/nb_client.h"
 #include "ui/shell.h"
 #include "i18n/i18n.h"
 
@@ -208,6 +209,15 @@ void setup()
     }
 
     wifi_manager::connect();
+
+    // nano_backbone: load config; auto-register on first boot if URL is configured
+    // but no API key is stored yet.  Runs only when WiFi is up.
+    nb_client::init();
+    if (wifi_manager::is_connected() &&
+        nb_client::has_config() && !nb_client::is_registered()) {
+        Serial.println("[nb] Auto-registering device...");
+        nb_client::register_device();
+    }
 
     // Show a loading screen while the HA WebSocket startup sequence runs
     // (auth → get_states → area/entity/device registries).

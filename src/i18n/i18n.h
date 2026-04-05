@@ -49,6 +49,13 @@ enum class StrId : uint8_t {
     ERR_HA_UNREACHABLE, // "HA nicht erreichbar" / "HA unreachable"
     ERR_AUTH_FAILED,    // "HA-Token ungültig\nNeu einrichten" / "Invalid HA token\nReconfigure in Settings"
 
+    // nano_backbone OTA settings section (TICKET-017)
+    NB_STATUS_NOT_CFG,  // "OTA: Nicht konfiguriert" / "OTA: Not configured"
+    NB_STATUS_UNREG,    // "OTA: Nicht registriert"  / "OTA: Not registered"
+    NB_STATUS_OK,       // "OTA: Registriert"         / "OTA: Registered"
+    NB_STATUS_FAILED,   // "OTA: Fehlgeschlagen"      / "OTA: Failed"
+    NB_REGISTER_BTN,    // "OTA registrieren"         / "Register OTA"
+
     _COUNT              // sentinel — keep last
 };
 

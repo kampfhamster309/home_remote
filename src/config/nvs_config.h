@@ -17,6 +17,15 @@ struct NetworkConfig {
 };
 
 // ----------------------------------------------------------------------------
+// nano_backbone OTA config
+// ----------------------------------------------------------------------------
+
+struct NanoBackboneConfig {
+    char nb_url[128];     // e.g. http://192.168.1.100:8000  (empty = not configured)
+    char nb_api_key[128]; // Api-Key issued on registration   (empty = not yet registered)
+};
+
+// ----------------------------------------------------------------------------
 // UI settings (display brightness)
 // ----------------------------------------------------------------------------
 
@@ -42,6 +51,22 @@ namespace nvs_config {
 
     // Removes network config from NVS (forces captive portal on next boot).
     void clear_net_config();
+
+    // ---- nano_backbone OTA config -------------------------------------------
+
+    // Returns true if a URL was previously saved (nb_url is non-empty).
+    // api_key may still be empty if registration has not yet run.
+    bool load_nb_config(NanoBackboneConfig& out);
+
+    // Save both URL and key.  Typically called from the captive portal
+    // (api_key = "" on first save) and from nb_client after registration.
+    void save_nb_config(const NanoBackboneConfig& cfg);
+
+    // Update only the api_key field without touching the URL.
+    void save_nb_api_key(const char* key);
+
+    // Erase only the api_key (forces re-registration on next boot).
+    void clear_nb_api_key();
 
     // ---- UI settings --------------------------------------------------------
 

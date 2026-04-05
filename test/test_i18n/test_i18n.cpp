@@ -213,6 +213,49 @@ void test_en_err_auth_failed()
 }
 
 // ----------------------------------------------------------------------------
+// nano_backbone OTA status strings (TICKET-017)
+// ----------------------------------------------------------------------------
+
+void test_de_nb_status_not_cfg()
+{
+    TEST_ASSERT_EQUAL_STRING("OTA: Nicht konfiguriert",
+                             i18n::str(StrId::NB_STATUS_NOT_CFG));
+}
+
+void test_de_nb_status_unreg()
+{
+    TEST_ASSERT_EQUAL_STRING("OTA: Nicht registriert",
+                             i18n::str(StrId::NB_STATUS_UNREG));
+}
+
+void test_de_nb_status_ok()
+{
+    TEST_ASSERT_EQUAL_STRING("OTA: Registriert", i18n::str(StrId::NB_STATUS_OK));
+}
+
+void test_de_nb_status_failed()
+{
+    TEST_ASSERT_EQUAL_STRING("OTA: Fehlgeschlagen", i18n::str(StrId::NB_STATUS_FAILED));
+}
+
+void test_de_nb_register_btn()
+{
+    TEST_ASSERT_EQUAL_STRING("OTA registrieren", i18n::str(StrId::NB_REGISTER_BTN));
+}
+
+void test_en_nb_status_ok()
+{
+    i18n::set_locale(Locale::EN);
+    TEST_ASSERT_EQUAL_STRING("OTA: Registered", i18n::str(StrId::NB_STATUS_OK));
+}
+
+void test_en_nb_register_btn()
+{
+    i18n::set_locale(Locale::EN);
+    TEST_ASSERT_EQUAL_STRING("Register OTA", i18n::str(StrId::NB_REGISTER_BTN));
+}
+
+// ----------------------------------------------------------------------------
 // Guard: out-of-range id returns ""
 // ----------------------------------------------------------------------------
 
@@ -287,6 +330,15 @@ int main()
     RUN_TEST(test_de_err_auth_failed);
     RUN_TEST(test_en_err_ha_unreachable);
     RUN_TEST(test_en_err_auth_failed);
+
+    // nano_backbone OTA strings (TICKET-017)
+    RUN_TEST(test_de_nb_status_not_cfg);
+    RUN_TEST(test_de_nb_status_unreg);
+    RUN_TEST(test_de_nb_status_ok);
+    RUN_TEST(test_de_nb_status_failed);
+    RUN_TEST(test_de_nb_register_btn);
+    RUN_TEST(test_en_nb_status_ok);
+    RUN_TEST(test_en_nb_register_btn);
 
     // Boundary
     RUN_TEST(test_out_of_range_returns_empty);

@@ -44,6 +44,11 @@ static constexpr const char* s_de[] = {
     "Touch kalibrieren",                                  // SETTINGS_RECALIBRATE
     "HA nicht erreichbar",                                // ERR_HA_UNREACHABLE
     "HA-Token ung\xc3\xbcltig\nNeu einrichten",          // ERR_AUTH_FAILED
+    "OTA: Nicht konfiguriert",                            // NB_STATUS_NOT_CFG
+    "OTA: Nicht registriert",                             // NB_STATUS_UNREG
+    "OTA: Registriert",                                   // NB_STATUS_OK
+    "OTA: Fehlgeschlagen",                                // NB_STATUS_FAILED
+    "OTA registrieren",                                   // NB_REGISTER_BTN
 };
 
 static constexpr const char* s_en[] = {
@@ -75,6 +80,11 @@ static constexpr const char* s_en[] = {
     "Calibrate Touch",                                    // SETTINGS_RECALIBRATE
     "HA unreachable",                                     // ERR_HA_UNREACHABLE
     "Invalid HA token\nReconfigure in Settings",          // ERR_AUTH_FAILED
+    "OTA: Not configured",                                // NB_STATUS_NOT_CFG
+    "OTA: Not registered",                                // NB_STATUS_UNREG
+    "OTA: Registered",                                    // NB_STATUS_OK
+    "OTA: Failed",                                        // NB_STATUS_FAILED
+    "Register OTA",                                       // NB_REGISTER_BTN
 };
 // clang-format on
 

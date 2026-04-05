@@ -79,6 +79,10 @@ static const char PORTAL_HTML[] = R"html(
     <textarea name="ha_token" required placeholder="Paste your token here"></textarea>
     <p class="hint">HA &rarr; Profile &rarr; Long-Lived Access Tokens &rarr; Create Token</p>
 
+    <label>nano_backbone Server URL <span style="color:#556">(optional — for OTA updates)</span></label>
+    <input type="text" name="nb_url" value="%NB_URL%" placeholder="http://192.168.1.100:8000">
+    <p class="hint">Leave empty to disable OTA firmware updates.</p>
+
     <button type="submit">Save &amp; Restart</button>
     %ERROR%
   </form>
@@ -132,11 +136,13 @@ static void dismiss_boot_screen(lv_obj_t* scr)
 
 static String build_portal_html(const char* ssid_val,
                                  const char* ha_url_val,
+                                 const char* nb_url_val,
                                  const char* error_msg)
 {
     String html(PORTAL_HTML);
-    html.replace("%SSID%",   ssid_val  ? ssid_val  : "");
+    html.replace("%SSID%",   ssid_val   ? ssid_val   : "");
     html.replace("%HA_URL%", ha_url_val ? ha_url_val : "");
+    html.replace("%NB_URL%", nb_url_val ? nb_url_val : "");
 
     if (error_msg && error_msg[0] != '\0') {
         String err_html = "<p class=\"err\">";
@@ -156,7 +162,7 @@ static String build_portal_html(const char* ssid_val,
 
 static void handle_root()
 {
-    s_server.send(200, "text/html", build_portal_html("", "", ""));
+    s_server.send(200, "text/html", build_portal_html("", "", "", ""));
 }
 
 static void handle_save()
@@ -165,39 +171,58 @@ static void handle_save()
     String password = s_server.arg("password");
     String ha_url   = s_server.arg("ha_url");
     String ha_token = s_server.arg("ha_token");
+    String nb_url   = s_server.arg("nb_url");
 
     // Trim whitespace that may have crept in (e.g. trailing newline in textarea)
     ssid.trim();
     ha_url.trim();
     ha_token.trim();
+    nb_url.trim();
+    // Strip trailing slashes from URLs to avoid double-slash in API paths
+    while (nb_url.endsWith("/")) nb_url.remove(nb_url.length() - 1);
 
-    // Validate
+    // Validate mandatory fields
     if (!net_ssid_valid(ssid.c_str())) {
         s_server.send(200, "text/html",
-            build_portal_html(ssid.c_str(), ha_url.c_str(),
+            build_portal_html(ssid.c_str(), ha_url.c_str(), nb_url.c_str(),
                               "Wi-Fi SSID must be 1–32 characters."));
         return;
     }
     if (!net_url_valid(ha_url.c_str())) {
         s_server.send(200, "text/html",
-            build_portal_html(ssid.c_str(), ha_url.c_str(),
+            build_portal_html(ssid.c_str(), ha_url.c_str(), nb_url.c_str(),
                               "HA URL must start with http:// or https://."));
         return;
     }
     if (!net_token_valid(ha_token.c_str())) {
         s_server.send(200, "text/html",
-            build_portal_html(ssid.c_str(), ha_url.c_str(),
+            build_portal_html(ssid.c_str(), ha_url.c_str(), nb_url.c_str(),
                               "HA token appears too short — did you paste it correctly?"));
         return;
     }
+    // Validate optional nano_backbone URL only when provided
+    if (!nb_url.isEmpty() && !net_url_valid(nb_url.c_str())) {
+        s_server.send(200, "text/html",
+            build_portal_html(ssid.c_str(), ha_url.c_str(), nb_url.c_str(),
+                              "nano_backbone URL must start with http:// or https://."));
+        return;
+    }
 
-    // Save to NVS
+    // Save WiFi + HA config to NVS
     NetworkConfig cfg{};
     ssid.toCharArray(cfg.ssid, sizeof(cfg.ssid));
     password.toCharArray(cfg.password, sizeof(cfg.password));
     ha_url.toCharArray(cfg.ha_url, sizeof(cfg.ha_url));
     ha_token.toCharArray(cfg.ha_token, sizeof(cfg.ha_token));
     nvs_config::save_net_config(cfg);
+
+    // Save nano_backbone URL to NVS (api_key left empty — nb_client registers later)
+    NanoBackboneConfig nb_cfg{};
+    nb_url.toCharArray(nb_cfg.nb_url, sizeof(nb_cfg.nb_url));
+    // nb_cfg.nb_api_key is zero-initialised — no key yet
+    if (!nb_url.isEmpty()) {
+        nvs_config::save_nb_config(nb_cfg);
+    }
 
     Serial.println("[wifi] Credentials saved. Rebooting...");
 

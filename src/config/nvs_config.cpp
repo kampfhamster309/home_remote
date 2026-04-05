@@ -98,6 +98,59 @@ void clear_net_config()
     prefs.end();
 }
 
+// ---- nano_backbone OTA config ----------------------------------------------
+
+static constexpr char NVS_NS_NB[]      = "nb_cfg";
+static constexpr char NVS_KEY_NB_URL[] = "nb_url";
+static constexpr char NVS_KEY_NB_KEY[] = "nb_api_key";
+// reuses NVS_KEY_VALID ("valid") with a different namespace
+
+bool load_nb_config(NanoBackboneConfig& out)
+{
+    Preferences prefs;
+    prefs.begin(NVS_NS_NB, /* readOnly= */ true);
+
+    const bool valid = prefs.getBool(NVS_KEY_VALID, false);
+    if (valid) {
+        prefs.getString(NVS_KEY_NB_URL, out.nb_url,     sizeof(out.nb_url));
+        prefs.getString(NVS_KEY_NB_KEY, out.nb_api_key, sizeof(out.nb_api_key));
+    }
+
+    prefs.end();
+    return valid && out.nb_url[0] != '\0';
+}
+
+void save_nb_config(const NanoBackboneConfig& cfg)
+{
+    Preferences prefs;
+    prefs.begin(NVS_NS_NB, /* readOnly= */ false);
+
+    prefs.putString(NVS_KEY_NB_URL, cfg.nb_url);
+    prefs.putString(NVS_KEY_NB_KEY, cfg.nb_api_key);
+    prefs.putBool(NVS_KEY_VALID, true);
+
+    prefs.end();
+}
+
+void save_nb_api_key(const char* key)
+{
+    Preferences prefs;
+    prefs.begin(NVS_NS_NB, /* readOnly= */ false);
+
+    prefs.putString(NVS_KEY_NB_KEY, key);
+    // Don't touch NVS_KEY_VALID or URL — they were set when nb_url was saved.
+
+    prefs.end();
+}
+
+void clear_nb_api_key()
+{
+    Preferences prefs;
+    prefs.begin(NVS_NS_NB, /* readOnly= */ false);
+    prefs.putString(NVS_KEY_NB_KEY, "");
+    prefs.end();
+}
+
 // ---- UI settings -----------------------------------------------------------
 
 static constexpr char NVS_NS_UI[]    = "ui_cfg";
