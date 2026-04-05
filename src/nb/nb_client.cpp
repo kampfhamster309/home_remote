@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include <WiFi.h>
 
 #include "../config/nvs_config.h"
 
@@ -13,7 +14,21 @@
 namespace {
 
 static constexpr char DEVICE_TYPE[] = "esp32_2432s028";
-static constexpr char DEVICE_NAME[] = "Home Remote";
+
+// Build device name: "Home Remote XXYYZZ" where XXYYZZ are the last 3 bytes
+// of the WiFi MAC address (upper-case hex, no colons).  Ensures uniqueness
+// across multiple devices on the same nano_backbone instance.
+// MAC format from WiFi.macAddress(): "AA:BB:CC:DD:EE:FF" (17 chars)
+// Last 3 bytes sit at substring indices (9,11), (12,14), (15,17).
+static String build_device_name()
+{
+    const String mac = WiFi.macAddress();  // "AA:BB:CC:DD:EE:FF"
+    String suffix = mac.substring(9, 11)   // DD
+                  + mac.substring(12, 14)  // EE
+                  + mac.substring(15, 17); // FF
+    suffix.toUpperCase();
+    return String("Home Remote ") + suffix;
+}
 
 // Module state
 static NanoBackboneConfig s_cfg{};
@@ -72,7 +87,7 @@ bool register_device()
     HTTPClient http;
     const String url = make_url("/api/v1/devices/register/");
 
-    Serial.printf("[nb] registering at %s\n", url.c_str());
+    Serial.printf("[nb] registering '%s' at %s\n", device_name.c_str(), url.c_str());
 
     if (!http.begin(url)) {
         Serial.println("[nb] register: http.begin() failed");
@@ -81,9 +96,10 @@ bool register_device()
     }
     http.addHeader("Content-Type", "application/json");
 
-    // Build request body
+    // Build request body — name includes MAC suffix for uniqueness
+    const String device_name = build_device_name();
     StaticJsonDocument<128> req;
-    req["name"]        = DEVICE_NAME;
+    req["name"]        = device_name.c_str();
     req["device_type"] = DEVICE_TYPE;
     String body;
     serializeJson(req, body);
