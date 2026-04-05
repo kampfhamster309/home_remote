@@ -61,4 +61,9 @@ void refresh_weather();
 // No-op if the shell has not been built yet (create() not yet called).
 void show_update_indicator(bool visible);
 
+// Show or hide the battery mode icon in the header.
+// Displayed as a static battery icon to the left of the settings gear button.
+// No-op if the shell has not been built yet (create() not yet called).
+void show_battery_indicator(bool visible);
+
 } // namespace shell

@@ -263,6 +263,7 @@ void loop()
     nb_client::tick();
     shell::update_status(wifi_manager::is_connected(), ha_client::get_connection_state());
     if (nb_client::is_update_available()) shell::show_update_indicator(true);
+    shell::show_battery_indicator(sleep_manager::is_battery_mode());
 
     // Heap diagnostics: log free + minimum heap every 5 minutes.
     // "min" is the all-time low since boot — a shrinking floor indicates a leak.

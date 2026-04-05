@@ -27,6 +27,11 @@
 #define UI_ICON_REPEAT       "\xEF\x81\xB9"  // U+F079  fa-repeat        (automation)
 #define UI_ICON_BOLT         "\xEF\x83\xA7"  // U+F0E7  fa-bolt
 
+// ---- Battery / mobile mode icon (TICKET-024) --------------------------------
+// Requires regenerating lv_font_icons_20.c — see human_to_do.md.
+// Until regenerated the icon renders as a blank glyph (no crash).
+#define UI_ICON_BATTERY      "\xEF\x89\x80"  // U+F240  fa-battery-full
+
 // ---- Weather icons (TICKET-012a) --------------------------------------------
 // These codepoints require regenerating lv_font_icons_20.c — see human_to_do.md.
 // Until regenerated they render as blank glyphs (no crash, just invisible icon).

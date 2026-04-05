@@ -47,6 +47,8 @@ static lv_obj_t* s_weather_tab_btn  = nullptr;
 static lv_obj_t* s_settings_btn     = nullptr;
 // Update available badge — small accent dot on the gear button top-right corner.
 static lv_obj_t* s_update_badge     = nullptr;
+// Battery mode icon — shown in header when battery mode is active.
+static lv_obj_t* s_battery_icon     = nullptr;
 
 // Error banner — semi-transparent overlay over the content area.
 // Created on demand by update_status(); deleted when connectivity is restored.
@@ -71,6 +73,7 @@ static void reset_static_ptrs()
     s_weather_tab_btn     = nullptr;
     s_settings_btn        = nullptr;
     s_update_badge        = nullptr;  // deleted with s_screen by lv_obj_del
+    s_battery_icon        = nullptr;  // deleted with s_screen by lv_obj_del
     s_error_banner        = nullptr;  // deleted with s_screen by lv_obj_del
     s_current_banner_msg  = nullptr;  // force re-evaluation after next create()
     for (size_t i = 0; i < UI_MAX_GROUPS; ++i) s_tab_btns[i] = nullptr;
@@ -308,11 +311,13 @@ void create()
     lv_obj_clear_flag(header, LV_OBJ_FLAG_SCROLLABLE);
 
     // Room name — left-aligned, vertically centered, clipped if too long.
-    // Width reserves space for: gear button (44px) + gap (4px) + 2 dots + margins.
-    // Right reservation: 4(margin) + 10(ha) + 6(gap) + 10(wifi) + 4(gap) + 44(gear) = 78px
+    // Width reserves space for: battery icon (20px) + gap (4px) + gear button (44px)
+    //                           + gap (4px) + 2 dots + margins.
+    // Right reservation: 4(margin) + 10(ha) + 6(gap) + 10(wifi) + 4(gap) + 44(gear)
+    //                    + 4(gap) + 20(battery) = 102px
     s_room_label = lv_label_create(header);
     lv_label_set_long_mode(s_room_label, LV_LABEL_LONG_CLIP);
-    lv_obj_set_width(s_room_label, SCREEN_WIDTH - 8 - 78 - 4);  // ~230 px
+    lv_obj_set_width(s_room_label, SCREEN_WIDTH - 8 - 102 - 4);  // ~206 px
     lv_obj_set_style_text_color(s_room_label, lv_color_hex(UI_COL_TEXT), LV_PART_MAIN);
     lv_obj_set_style_text_font(s_room_label, &lv_font_montserrat_16, LV_PART_MAIN);
     lv_obj_align(s_room_label, LV_ALIGN_LEFT_MID, 8, 0);
@@ -363,6 +368,20 @@ void create()
     lv_obj_set_style_border_width(s_update_badge, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(s_update_badge, LV_RADIUS_CIRCLE, LV_PART_MAIN);
     lv_obj_add_flag(s_update_badge, LV_OBJ_FLAG_HIDDEN);
+
+    // Battery mode icon — positioned left of the gear button.
+    // Gear button right edge is at (320-34)=286, left at 242.
+    // Battery icon: 20 px wide, right edge at 242-4=238 → RIGHT_MID offset = -(320-238) = -82.
+    // Hidden by default; revealed via show_battery_indicator(true).
+    s_battery_icon = lv_label_create(header);
+    lv_obj_set_width(s_battery_icon, 20);
+    lv_label_set_long_mode(s_battery_icon, LV_LABEL_LONG_CLIP);
+    lv_label_set_text(s_battery_icon, UI_ICON_BATTERY);
+    lv_obj_set_style_text_font(s_battery_icon, &lv_font_icons_20, LV_PART_MAIN);
+    lv_obj_set_style_text_color(s_battery_icon, lv_color_hex(UI_COL_TEXT_DIM), LV_PART_MAIN);
+    lv_obj_set_style_text_align(s_battery_icon, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_align(s_battery_icon, LV_ALIGN_RIGHT_MID, -82, 0);
+    lv_obj_add_flag(s_battery_icon, LV_OBJ_FLAG_HIDDEN);
 
     // ---- Content area -------------------------------------------------------
     s_content = lv_obj_create(s_screen);
@@ -562,6 +581,16 @@ void show_update_indicator(bool visible)
         lv_obj_clear_flag(s_update_badge, LV_OBJ_FLAG_HIDDEN);
     } else {
         lv_obj_add_flag(s_update_badge, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+void show_battery_indicator(bool visible)
+{
+    if (!s_battery_icon) return;
+    if (visible) {
+        lv_obj_clear_flag(s_battery_icon, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(s_battery_icon, LV_OBJ_FLAG_HIDDEN);
     }
 }
 
