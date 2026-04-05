@@ -4,6 +4,7 @@
 #include <lvgl.h>
 #include <esp_sleep.h>
 #include <driver/gpio.h>
+#include <driver/rtc_io.h>
 
 #include "display_config.h"
 #include "config/nvs_config.h"
@@ -36,6 +37,17 @@ static void do_sleep()
     esp_light_sleep_start();
 
     // ---- Execution resumes here after touch wakes the device ----------------
+
+    // gpio_wakeup_enable() for GPIO 36 internally calls rtc_gpio_init(), which
+    // routes the pin through the RTC GPIO controller instead of the normal GPIO
+    // matrix.  gpio_wakeup_disable() clears the wakeup trigger but does NOT
+    // call rtc_gpio_deinit(), so the pin remains under RTC control.  Every
+    // subsequent digitalRead(36) — used by XPT2046::tirqTouched() — reads from
+    // the RTC controller and returns stale data, making the touchscreen appear
+    // completely dead after the first wake.  rtc_gpio_deinit() restores the
+    // normal GPIO matrix routing and fixes this.
+    gpio_wakeup_disable(static_cast<gpio_num_t>(TOUCH_PIN_IRQ));
+    rtc_gpio_deinit(static_cast<gpio_num_t>(TOUCH_PIN_IRQ));
 
     // millis() is backed by esp_timer which continues through light sleep, so
     // LVGL's tick is accurate.  However, lv_disp_get_inactive_time() would now
