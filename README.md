@@ -189,12 +189,9 @@ home_remote/
 | 021 | Hardware assembly & baseline measurement | — |
 | 022 | Light sleep & wake implementation | ✅ |
 | 023 | ~~Adaptive WiFi & HA sync strategy~~ (superseded by 022) | — |
-| 024 | "On battery" mode indicator | ✅² |
+| 024 | "On battery" mode indicator | ✅ |
 | 025 | Mobile mode UI adaptations (settings toggle, OTA gate) | ✅ |
 | 026 | Power budget validation & tuning | — |
 
 ¹ Automated portion complete (heap diagnostics, test checklists). On-device soak
 test and end-to-end OTA validation are manual steps — see `human_to_do.md`.
-
-² Icon renders as blank glyph until `lv_font_icons_20.c` is regenerated with U+F240
-(fa-battery-full) — see `human_to_do.md`.
