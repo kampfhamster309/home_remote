@@ -56,6 +56,11 @@ static constexpr const char* s_de[] = {
     "Pr\xc3\xbcfsumme ung\xc3\xbcltig",                  // NB_UPDATE_FAIL_HASH
     "Flash fehlgeschlagen",                               // NB_UPDATE_FAIL_FLASH
     "Kein Update verf\xc3\xbcgbar",                       // NB_UPDATE_NO_RELEASE
+    "Akkubetrieb:",                                        // SETTINGS_BATTERY_MODE
+    "Aus",                                                 // SETTINGS_BATTERY_OFF
+    "An",                                                  // SETTINGS_BATTERY_ON
+    "Schlaf-Timer:",                                       // SETTINGS_SLEEP_TIMEOUT
+    "Update: Akkubetrieb deaktivieren",                    // NB_UPDATE_BATT_HINT
 };
 
 static constexpr const char* s_en[] = {
@@ -99,6 +104,11 @@ static constexpr const char* s_en[] = {
     "Checksum invalid",                                   // NB_UPDATE_FAIL_HASH
     "Flash failed",                                       // NB_UPDATE_FAIL_FLASH
     "No update available",                                // NB_UPDATE_NO_RELEASE
+    "Battery mode:",                                      // SETTINGS_BATTERY_MODE
+    "Off",                                                // SETTINGS_BATTERY_OFF
+    "On",                                                 // SETTINGS_BATTERY_ON
+    "Sleep timeout:",                                     // SETTINGS_SLEEP_TIMEOUT
+    "Disable battery mode to update",                     // NB_UPDATE_BATT_HINT
 };
 // clang-format on
 

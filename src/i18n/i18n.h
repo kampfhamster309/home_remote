@@ -65,6 +65,13 @@ enum class StrId : uint8_t {
     NB_UPDATE_FAIL_FLASH, // "Flash fehlgeschlagen"             / "Flash failed"
     NB_UPDATE_NO_RELEASE, // "Kein Update verfügbar"            / "No update available"
 
+    // Battery / mobile mode settings (TICKET-025)
+    SETTINGS_BATTERY_MODE,  // "Akkubetrieb:"   / "Battery mode:"
+    SETTINGS_BATTERY_OFF,   // "Aus"            / "Off"
+    SETTINGS_BATTERY_ON,    // "An"             / "On"
+    SETTINGS_SLEEP_TIMEOUT, // "Schlaf-Timer:"  / "Sleep timeout:"
+    NB_UPDATE_BATT_HINT,    // hint shown instead of "Install Update" when battery mode is on
+
     _COUNT              // sentinel — keep last
 };
 

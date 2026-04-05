@@ -190,7 +190,7 @@ home_remote/
 | 022 | Light sleep & wake implementation | ✅ |
 | 023 | ~~Adaptive WiFi & HA sync strategy~~ (superseded by 022) | — |
 | 024 | "On battery" mode indicator | ✅² |
-| 025 | Mobile mode UI adaptations (settings toggle, OTA gate) | — |
+| 025 | Mobile mode UI adaptations (settings toggle, OTA gate) | ✅ |
 | 026 | Power budget validation & tuning | — |
 
 ¹ Automated portion complete (heap diagnostics, test checklists). On-device soak

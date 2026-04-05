@@ -15,6 +15,7 @@
 #include "config/nvs_config.h"
 #include "touch/touch_driver.h"
 #include "nb/nb_client.h"
+#include "sleep/sleep_manager.h"
 #include "i18n/i18n.h"
 #include "shell.h"
 
@@ -42,6 +43,13 @@ static lv_obj_t* s_brt_val_lbl = nullptr;
 static lv_obj_t* s_nb_status_lbl  = nullptr;
 static lv_obj_t* s_nb_reg_btn     = nullptr;
 static lv_obj_t* s_nb_update_btn  = nullptr;
+
+// Battery / mobile mode section (TICKET-025)
+static lv_obj_t* s_bat_off_btn   = nullptr;
+static lv_obj_t* s_bat_on_btn    = nullptr;
+static lv_obj_t* s_tmout_10_btn  = nullptr;
+static lv_obj_t* s_tmout_30_btn  = nullptr;
+static lv_obj_t* s_tmout_60_btn  = nullptr;
 
 // OTA progress screen (shown while flashing)
 static lv_obj_t* s_ota_screen  = nullptr;
@@ -89,6 +97,8 @@ static void on_back_click(lv_event_t* /*e*/)
     s_de_btn = s_en_btn = nullptr;
     s_brt_slider = s_brt_val_lbl = nullptr;
     s_nb_status_lbl = s_nb_reg_btn = s_nb_update_btn = nullptr;
+    s_bat_off_btn = s_bat_on_btn = nullptr;
+    s_tmout_10_btn = s_tmout_30_btn = s_tmout_60_btn = nullptr;
     // auto_del=true: LVGL deletes the settings screen after the fade-out
     lv_scr_load_anim(prev, LV_SCR_LOAD_ANIM_FADE_ON, 200, 0, true);
 }
@@ -104,6 +114,8 @@ static void on_de_click(lv_event_t* /*e*/)
     s_de_btn = s_en_btn = nullptr;
     s_brt_slider = s_brt_val_lbl = nullptr;
     s_nb_status_lbl = s_nb_reg_btn = s_nb_update_btn = nullptr;
+    s_bat_off_btn = s_bat_on_btn = nullptr;
+    s_tmout_10_btn = s_tmout_30_btn = s_tmout_60_btn = nullptr;
     shell::create();  // rebuilds all UI strings; deletes old shell + fades out this screen
 }
 
@@ -115,6 +127,8 @@ static void on_en_click(lv_event_t* /*e*/)
     s_de_btn = s_en_btn = nullptr;
     s_brt_slider = s_brt_val_lbl = nullptr;
     s_nb_status_lbl = s_nb_reg_btn = s_nb_update_btn = nullptr;
+    s_bat_off_btn = s_bat_on_btn = nullptr;
+    s_tmout_10_btn = s_tmout_30_btn = s_tmout_60_btn = nullptr;
     shell::create();
 }
 
@@ -189,6 +203,8 @@ static void on_nb_update_click(lv_event_t* /*e*/)
     s_de_btn = s_en_btn = nullptr;
     s_brt_slider = s_brt_val_lbl = nullptr;
     s_nb_status_lbl = s_nb_reg_btn = s_nb_update_btn = nullptr;
+    s_bat_off_btn = s_bat_on_btn = nullptr;
+    s_tmout_10_btn = s_tmout_30_btn = s_tmout_60_btn = nullptr;
 
     // ---- Build OTA progress screen ------------------------------------------
     s_ota_screen = lv_obj_create(nullptr);
@@ -315,6 +331,8 @@ static void on_recalibrate_click(lv_event_t* /*e*/)
     s_de_btn = s_en_btn = nullptr;
     s_brt_slider = s_brt_val_lbl = nullptr;
     s_nb_status_lbl = s_nb_reg_btn = s_nb_update_btn = nullptr;
+    s_bat_off_btn = s_bat_on_btn = nullptr;
+    s_tmout_10_btn = s_tmout_30_btn = s_tmout_60_btn = nullptr;
 
     lv_obj_del_async(stale);  // deferred — safe from inside event callback
     if (prev) lv_obj_del_async(prev);  // stale previous shell screen
@@ -326,6 +344,50 @@ static void on_recalibrate_click(lv_event_t* /*e*/)
     // it still holds at the start of the function, then loads the new screen
     // (auto_del=true deletes the blank screen from calibration).
     shell::create();
+}
+
+// ----------------------------------------------------------------------------
+// Battery mode callbacks (TICKET-025)
+// ----------------------------------------------------------------------------
+
+static void on_bat_off_click(lv_event_t* /*e*/)
+{
+    sleep_manager::set_battery_mode(false);
+    if (s_bat_off_btn) style_lang_btn(s_bat_off_btn, true);
+    if (s_bat_on_btn)  style_lang_btn(s_bat_on_btn, false);
+}
+
+static void on_bat_on_click(lv_event_t* /*e*/)
+{
+    sleep_manager::set_battery_mode(true);
+    if (s_bat_off_btn) style_lang_btn(s_bat_off_btn, false);
+    if (s_bat_on_btn)  style_lang_btn(s_bat_on_btn, true);
+}
+
+static void refresh_tmout_style()
+{
+    const uint16_t cur = sleep_manager::get_timeout_s();
+    if (s_tmout_10_btn) style_lang_btn(s_tmout_10_btn, cur == 10);
+    if (s_tmout_30_btn) style_lang_btn(s_tmout_30_btn, cur == 30);
+    if (s_tmout_60_btn) style_lang_btn(s_tmout_60_btn, cur == 60);
+}
+
+static void on_tmout_10_click(lv_event_t* /*e*/)
+{
+    sleep_manager::set_timeout_s(10);
+    refresh_tmout_style();
+}
+
+static void on_tmout_30_click(lv_event_t* /*e*/)
+{
+    sleep_manager::set_timeout_s(30);
+    refresh_tmout_style();
+}
+
+static void on_tmout_60_click(lv_event_t* /*e*/)
+{
+    sleep_manager::set_timeout_s(60);
+    refresh_tmout_style();
 }
 
 } // anonymous namespace
@@ -519,16 +581,106 @@ void open()
     lv_obj_set_style_text_font(recal_lbl, &lv_font_montserrat_16, LV_PART_MAIN);
     lv_obj_align(recal_lbl, LV_ALIGN_CENTER, 0, 0);
 
+    // ---- Battery / mobile mode section (TICKET-025) -------------------------
+    {
+        const bool bat_on = sleep_manager::is_battery_mode();
+        const uint16_t cur_timeout = sleep_manager::get_timeout_s();
+
+        // Thin separator
+        lv_obj_t* bat_sep = lv_obj_create(content);
+        lv_obj_set_size(bat_sep, SCREEN_WIDTH - 20, 1);
+        lv_obj_set_pos(bat_sep, 10, 202);
+        lv_obj_set_style_bg_color(bat_sep, lv_color_hex(UI_COL_BORDER), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(bat_sep, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_border_width(bat_sep, 0, LV_PART_MAIN);
+
+        lv_obj_t* bat_lbl = lv_label_create(content);
+        lv_label_set_text(bat_lbl, i18n::str(StrId::SETTINGS_BATTERY_MODE));
+        lv_obj_set_style_text_color(bat_lbl, lv_color_hex(UI_COL_TEXT_DIM), LV_PART_MAIN);
+        lv_obj_set_style_text_font(bat_lbl, &lv_font_montserrat_14, LV_PART_MAIN);
+        lv_obj_set_pos(bat_lbl, 10, 212);
+
+        // [Off] [On] toggle — same width/style as language buttons
+        static constexpr int BAT_BTN_W = 144;
+        static constexpr int BAT_BTN_H = 44;
+        static constexpr int BAT_BTN_Y = 232;
+
+        s_bat_off_btn = lv_btn_create(content);
+        lv_obj_set_size(s_bat_off_btn, BAT_BTN_W, BAT_BTN_H);
+        lv_obj_set_pos(s_bat_off_btn, 8, BAT_BTN_Y);
+        lv_obj_add_event_cb(s_bat_off_btn, on_bat_off_click, LV_EVENT_CLICKED, nullptr);
+        style_lang_btn(s_bat_off_btn, !bat_on);
+        { lv_obj_t* l = lv_label_create(s_bat_off_btn);
+          lv_label_set_text(l, i18n::str(StrId::SETTINGS_BATTERY_OFF));
+          lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_TEXT), LV_PART_MAIN);
+          lv_obj_set_style_text_font(l, &lv_font_montserrat_16, LV_PART_MAIN);
+          lv_obj_align(l, LV_ALIGN_CENTER, 0, 0); }
+
+        s_bat_on_btn = lv_btn_create(content);
+        lv_obj_set_size(s_bat_on_btn, BAT_BTN_W, BAT_BTN_H);
+        lv_obj_set_pos(s_bat_on_btn, 8 + BAT_BTN_W + 16, BAT_BTN_Y);
+        lv_obj_add_event_cb(s_bat_on_btn, on_bat_on_click, LV_EVENT_CLICKED, nullptr);
+        style_lang_btn(s_bat_on_btn, bat_on);
+        { lv_obj_t* l = lv_label_create(s_bat_on_btn);
+          lv_label_set_text(l, i18n::str(StrId::SETTINGS_BATTERY_ON));
+          lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_TEXT), LV_PART_MAIN);
+          lv_obj_set_style_text_font(l, &lv_font_montserrat_16, LV_PART_MAIN);
+          lv_obj_align(l, LV_ALIGN_CENTER, 0, 0); }
+
+        // Sleep timeout selector: [10s] [30s] [60s]
+        lv_obj_t* tmout_lbl = lv_label_create(content);
+        lv_label_set_text(tmout_lbl, i18n::str(StrId::SETTINGS_SLEEP_TIMEOUT));
+        lv_obj_set_style_text_color(tmout_lbl, lv_color_hex(UI_COL_TEXT_DIM), LV_PART_MAIN);
+        lv_obj_set_style_text_font(tmout_lbl, &lv_font_montserrat_14, LV_PART_MAIN);
+        lv_obj_set_pos(tmout_lbl, 10, 286);
+
+        // 3 equal-width buttons: (300px available − 2×4px gaps) / 3 = 97px each
+        static constexpr int TMOUT_BTN_W = (SCREEN_WIDTH - 20 - 8) / 3;
+        static constexpr int TMOUT_BTN_H = 44;
+        static constexpr int TMOUT_BTN_Y = 304;
+
+        s_tmout_10_btn = lv_btn_create(content);
+        lv_obj_set_size(s_tmout_10_btn, TMOUT_BTN_W, TMOUT_BTN_H);
+        lv_obj_set_pos(s_tmout_10_btn, 10, TMOUT_BTN_Y);
+        lv_obj_add_event_cb(s_tmout_10_btn, on_tmout_10_click, LV_EVENT_CLICKED, nullptr);
+        style_lang_btn(s_tmout_10_btn, cur_timeout == 10);
+        { lv_obj_t* l = lv_label_create(s_tmout_10_btn); lv_label_set_text(l, "10s");
+          lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_TEXT), LV_PART_MAIN);
+          lv_obj_set_style_text_font(l, &lv_font_montserrat_16, LV_PART_MAIN);
+          lv_obj_align(l, LV_ALIGN_CENTER, 0, 0); }
+
+        s_tmout_30_btn = lv_btn_create(content);
+        lv_obj_set_size(s_tmout_30_btn, TMOUT_BTN_W, TMOUT_BTN_H);
+        lv_obj_set_pos(s_tmout_30_btn, 10 + TMOUT_BTN_W + 4, TMOUT_BTN_Y);
+        lv_obj_add_event_cb(s_tmout_30_btn, on_tmout_30_click, LV_EVENT_CLICKED, nullptr);
+        style_lang_btn(s_tmout_30_btn, cur_timeout == 30);
+        { lv_obj_t* l = lv_label_create(s_tmout_30_btn); lv_label_set_text(l, "30s");
+          lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_TEXT), LV_PART_MAIN);
+          lv_obj_set_style_text_font(l, &lv_font_montserrat_16, LV_PART_MAIN);
+          lv_obj_align(l, LV_ALIGN_CENTER, 0, 0); }
+
+        s_tmout_60_btn = lv_btn_create(content);
+        lv_obj_set_size(s_tmout_60_btn, TMOUT_BTN_W, TMOUT_BTN_H);
+        lv_obj_set_pos(s_tmout_60_btn, 10 + (TMOUT_BTN_W + 4) * 2, TMOUT_BTN_Y);
+        lv_obj_add_event_cb(s_tmout_60_btn, on_tmout_60_click, LV_EVENT_CLICKED, nullptr);
+        style_lang_btn(s_tmout_60_btn, cur_timeout == 60);
+        { lv_obj_t* l = lv_label_create(s_tmout_60_btn); lv_label_set_text(l, "60s");
+          lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_TEXT), LV_PART_MAIN);
+          lv_obj_set_style_text_font(l, &lv_font_montserrat_16, LV_PART_MAIN);
+          lv_obj_align(l, LV_ALIGN_CENTER, 0, 0); }
+    }
+
     // ---- nano_backbone OTA section -----------------------------------------
     // Only rendered when nb_url is configured; always shown when configured
     // so the user can see registration status and re-trigger if needed.
     {
         const nb_client::Status nb_status = nb_client::get_status();
+        const bool bat_on = sleep_manager::is_battery_mode();
 
         // Thin separator line
         lv_obj_t* sep = lv_obj_create(content);
         lv_obj_set_size(sep, SCREEN_WIDTH - 20, 1);
-        lv_obj_set_pos(sep, 10, 200);
+        lv_obj_set_pos(sep, 10, 356);
         lv_obj_set_style_bg_color(sep, lv_color_hex(UI_COL_BORDER), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(sep, LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_set_style_border_width(sep, 0, LV_PART_MAIN);
@@ -549,7 +701,7 @@ void open()
                          ? UI_COL_OK : UI_COL_TEXT_DIM),
             LV_PART_MAIN);
         lv_obj_set_style_text_font(s_nb_status_lbl, &lv_font_montserrat_14, LV_PART_MAIN);
-        lv_obj_set_pos(s_nb_status_lbl, 10, 210);
+        lv_obj_set_pos(s_nb_status_lbl, 10, 366);
 
         // Helper: create a standard OTA action button at the given y position
         auto make_ota_btn = [&](int y) -> lv_obj_t* {
@@ -568,7 +720,7 @@ void open()
             return btn;
         };
 
-        int next_btn_y = 232;
+        int next_btn_y = 388;
 
         // "Register OTA" button — shown when configured but not registered (or failed)
         if (nb_status == nb_client::Status::UNREGISTERED ||
@@ -584,16 +736,27 @@ void open()
             next_btn_y += 52;
         }
 
-        // "Install Update" button — shown when registered and an update is available
+        // "Install Update" button — shown when registered and an update is available.
+        // When battery mode is on: replaced with a hint label (OTA gate).
         if (nb_status == nb_client::Status::REGISTERED && nb_client::is_update_available()) {
-            s_nb_update_btn = make_ota_btn(next_btn_y);
-            lv_obj_add_event_cb(s_nb_update_btn, on_nb_update_click, LV_EVENT_CLICKED, nullptr);
+            if (bat_on) {
+                lv_obj_t* hint = lv_label_create(content);
+                lv_label_set_text(hint, i18n::str(StrId::NB_UPDATE_BATT_HINT));
+                lv_obj_set_style_text_color(hint, lv_color_hex(UI_COL_TEXT_DIM), LV_PART_MAIN);
+                lv_obj_set_style_text_font(hint, &lv_font_montserrat_14, LV_PART_MAIN);
+                lv_obj_set_width(hint, SCREEN_WIDTH - 20);
+                lv_label_set_long_mode(hint, LV_LABEL_LONG_WRAP);
+                lv_obj_set_pos(hint, 10, next_btn_y);
+            } else {
+                s_nb_update_btn = make_ota_btn(next_btn_y);
+                lv_obj_add_event_cb(s_nb_update_btn, on_nb_update_click, LV_EVENT_CLICKED, nullptr);
 
-            lv_obj_t* upd_lbl = lv_label_create(s_nb_update_btn);
-            lv_label_set_text(upd_lbl, i18n::str(StrId::NB_UPDATE_BTN));
-            lv_obj_set_style_text_color(upd_lbl, lv_color_hex(UI_COL_ACCENT), LV_PART_MAIN);
-            lv_obj_set_style_text_font(upd_lbl, &lv_font_montserrat_16, LV_PART_MAIN);
-            lv_obj_align(upd_lbl, LV_ALIGN_CENTER, 0, 0);
+                lv_obj_t* upd_lbl = lv_label_create(s_nb_update_btn);
+                lv_label_set_text(upd_lbl, i18n::str(StrId::NB_UPDATE_BTN));
+                lv_obj_set_style_text_color(upd_lbl, lv_color_hex(UI_COL_ACCENT), LV_PART_MAIN);
+                lv_obj_set_style_text_font(upd_lbl, &lv_font_montserrat_16, LV_PART_MAIN);
+                lv_obj_align(upd_lbl, LV_ALIGN_CENTER, 0, 0);
+            }
         }
     }
 
