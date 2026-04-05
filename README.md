@@ -125,13 +125,15 @@ home_remote/
 │   │   ├── area_cache.h/.cpp     # Area-based entity grouping (max 12 rooms)
 │   │   └── weather_cache.h/.cpp  # Weather entity state + forecast cache
 │   ├── config/
-│   │   └── nvs_config.h/.cpp     # NVS load/save for WiFi, HA, touch cal, nb OTA
+│   │   └── nvs_config.h/.cpp     # NVS load/save for WiFi, HA, touch cal, nb OTA, mobile
 │   ├── touch/
 │   │   └── touch_driver.h/.cpp   # XPT2046 init, calibration UI, LVGL indev
 │   ├── wifi/
 │   │   └── wifi_manager.h/.cpp   # Captive portal (WiFi+HA+nb URL), connect, reconnect
 │   ├── nb/
 │   │   └── nb_client.h/.cpp      # nano_backbone OTA: register, version check, flash
+│   ├── sleep/
+│   │   └── sleep_manager.h/.cpp  # Light sleep / battery mode (inactivity timer, wake)
 │   ├── ui/
 │   │   ├── shell.h/.cpp          # Nav bar, screen switching, weather tab
 │   │   ├── tile_widget.h/.cpp    # Device tile (on/off/unavailable states)
@@ -185,7 +187,7 @@ home_remote/
 | 019 | OTA download & flash | ✅ |
 | 020 | Post-update reporting & rollback | ✅ |
 | 021 | Hardware assessment & power architecture | — |
-| 022 | Deep sleep & wake implementation | — |
+| 022 | Light sleep & wake implementation | ✅ |
 | 023 | Adaptive WiFi & HA sync strategy | — |
 | 024 | Battery voltage monitoring | — |
 | 025 | Mobile mode UI adaptations | — |
