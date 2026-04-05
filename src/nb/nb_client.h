@@ -103,4 +103,21 @@ bool is_update_available();
 // or an empty string if no check has completed yet.
 const char* get_latest_version();
 
+// ----------------------------------------------------------------------------
+// Post-update reporting & rollback (TICKET-020)
+// ----------------------------------------------------------------------------
+
+// Call early in setup() after wifi_manager::connect() and nb_client::init().
+// If the boot-attempt counter (incremented by nvs_config::increment_boot_count()
+// early in setup) has reached 3 with an update pending, this reports
+// "update_failed" to nano_backbone (best-effort), clears the NVS state,
+// rolls back to the previous OTA partition, and reboots.  May not return.
+void check_boot_loop();
+
+// Call once the device is confirmed operational (HA shell displayed).
+// If an OTA update was pending, spawns a background FreeRTOS task to report
+// "update_success" to nano_backbone and clears the NVS boot state.
+// No-op on subsequent calls (guarded by an internal flag).
+void on_startup_confirmed();
+
 } // namespace nb_client

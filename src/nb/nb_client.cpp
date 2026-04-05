@@ -45,6 +45,9 @@ static volatile char  s_latest_version[32] = {};
 static volatile bool  s_task_running       = false;
 static uint32_t       s_last_check_ms      = 0;
 
+// Post-update reporting state (TICKET-020)
+static volatile bool  s_startup_reported   = false;
+
 // Build a full API URL by appending `path` to the stored base URL.
 // Handles a trailing slash on nb_url gracefully (already stripped by portal,
 // but defensive here).
@@ -101,6 +104,42 @@ static void version_check_task(void* /*param*/)
     }
 
     s_task_running = false;
+    vTaskDelete(nullptr);
+}
+
+// Internal helper: POST /api/v1/devices/events/ — blocking HTTP call.
+// `event` must be "update_success" or "update_failed".
+// Returns true on HTTP 201.
+static bool report_event_internal(const char* event)
+{
+    if (!s_has_config || s_status != Status::REGISTERED) return false;
+
+    HTTPClient http;
+    const String url = make_url("/api/v1/devices/events/");
+    if (!http.begin(url)) return false;
+
+    http.addHeader("Authorization", String("Api-Key ") + s_cfg.nb_api_key);
+    http.addHeader("Content-Type", "application/json");
+
+    StaticJsonDocument<128> doc;
+    doc["event"]   = event;
+    doc["version"] = FIRMWARE_VERSION;
+    String body;
+    serializeJson(doc, body);
+
+    const int code = http.POST(body);
+    http.end();
+
+    Serial.printf("[nb] events: %s → HTTP %d\n", event, code);
+    return code == 201;
+}
+
+// FreeRTOS task: report update_success then clear NVS state.
+// Spawned by on_startup_confirmed() so it does not block the LVGL loop.
+static void startup_report_task(void* /*param*/)
+{
+    report_event_internal("update_success");
+    nvs_config::clear_update_state();
     vTaskDelete(nullptr);
 }
 
@@ -378,6 +417,45 @@ bool is_update_available()
 const char* get_latest_version()
 {
     return const_cast<const char*>(s_latest_version);
+}
+
+void check_boot_loop()
+{
+    if (!s_has_config) return;
+    if (!nvs_config::load_update_pending()) return;
+    if (nvs_config::load_boot_count() < 3) return;
+
+    // Three boot attempts without a confirmed successful startup — the new
+    // firmware is likely broken.  Report failure (best-effort; WiFi may be
+    // down), clear the NVS state so we can't loop here again, then roll back
+    // to the previous OTA partition and reboot.
+    Serial.println("[nb] boot loop detected after OTA — rolling back");
+    report_event_internal("update_failed");  // best-effort
+    nvs_config::clear_update_state();
+
+    if (Update.rollBack()) {
+        Serial.println("[nb] OTA rollback OK — rebooting into previous firmware");
+    } else {
+        Serial.println("[nb] WARNING: Update.rollBack() failed — no valid fallback partition?");
+    }
+    delay(500);
+    ESP.restart();
+    // Does not return.
+}
+
+void on_startup_confirmed()
+{
+    if (s_startup_reported) return;  // already reported (e.g. after HA reconnect)
+    if (!s_has_config || s_status != Status::REGISTERED) return;
+    if (!nvs_config::load_update_pending()) return;
+
+    // Guard against re-entry before the task clears NVS (HA reconnects quickly).
+    s_startup_reported = true;
+
+    Serial.printf("[nb] startup confirmed — reporting update_success for v%s\n",
+                  FIRMWARE_VERSION);
+    xTaskCreatePinnedToCore(startup_report_task, "nb_upd_ok",
+                            4096, nullptr, 1, nullptr, 0);
 }
 
 } // namespace nb_client

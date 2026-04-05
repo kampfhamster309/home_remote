@@ -151,6 +151,60 @@ void clear_nb_api_key()
     prefs.end();
 }
 
+// ---- OTA update state (TICKET-020) -----------------------------------------
+
+static constexpr char NVS_KEY_UPD_PEND[] = "upd_pending";
+static constexpr char NVS_KEY_BOOT_CTR[] = "boot_ctr";
+
+void set_update_pending()
+{
+    Preferences prefs;
+    prefs.begin(NVS_NS_NB, /* readOnly= */ false);
+    prefs.putBool(NVS_KEY_UPD_PEND, true);
+    prefs.putUChar(NVS_KEY_BOOT_CTR, 0);
+    prefs.end();
+}
+
+void increment_boot_count()
+{
+    Preferences prefs;
+    prefs.begin(NVS_NS_NB, /* readOnly= */ false);
+    if (!prefs.getBool(NVS_KEY_UPD_PEND, false)) {
+        prefs.end();
+        return;  // no update pending — nothing to count
+    }
+    const uint8_t ctr = prefs.getUChar(NVS_KEY_BOOT_CTR, 0);
+    prefs.putUChar(NVS_KEY_BOOT_CTR, ctr + 1);
+    prefs.end();
+}
+
+bool load_update_pending()
+{
+    Preferences prefs;
+    prefs.begin(NVS_NS_NB, /* readOnly= */ true);
+    const bool v = prefs.getBool(NVS_KEY_UPD_PEND, false);
+    prefs.end();
+    return v;
+}
+
+uint8_t load_boot_count()
+{
+    Preferences prefs;
+    prefs.begin(NVS_NS_NB, /* readOnly= */ true);
+    const uint8_t v = prefs.getUChar(NVS_KEY_BOOT_CTR, 0);
+    prefs.end();
+    return v;
+}
+
+void clear_update_state()
+{
+    Preferences prefs;
+    prefs.begin(NVS_NS_NB, /* readOnly= */ false);
+    prefs.putBool(NVS_KEY_UPD_PEND, false);
+    prefs.putUChar(NVS_KEY_BOOT_CTR, 0);
+    prefs.end();
+}
+
 // ---- UI settings -----------------------------------------------------------
 
 static constexpr char NVS_NS_UI[]    = "ui_cfg";

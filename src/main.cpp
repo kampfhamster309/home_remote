@@ -22,6 +22,10 @@
 
 static TFT_eSPI tft;
 
+// Periodic heap diagnostics — logged every 5 minutes to serial (TICKET-016).
+// Helps detect slow leaks during the 24 h soak test.
+static uint32_t s_last_heap_log = 0;
+
 // LVGL draw buffers (double-buffered)
 static lv_disp_draw_buf_t draw_buf;
 static lv_color_t buf1[SCREEN_WIDTH * LVGL_BUFFER_LINES];
@@ -102,6 +106,10 @@ static void on_ha_device_registry(const JsonArray& devices)
     // This runs inside ha_client::tick() (not an ISR) so LVGL calls are safe.
     shell::create();
 
+    // Device is operational — if an OTA update was pending, report success to
+    // nano_backbone via a background task and clear the boot-loop counter.
+    nb_client::on_startup_confirmed();
+
     // Request forecast after shell is built (needs SUBSCRIBED state,
     // which is entered immediately after device_registry is processed).
     if (weather_cache::has_weather()) {
@@ -180,6 +188,11 @@ void setup()
     Serial.println("\n[boot] Home Remote starting...");
     Serial.printf("[boot] Free heap: %u bytes\n", ESP.getFreeHeap());
 
+    // Increment per-boot counter early — before any code that could crash.
+    // This feeds the boot-loop detection in nb_client::check_boot_loop().
+    // No-op when no OTA update is pending (normal boots are not counted).
+    nvs_config::increment_boot_count();
+
     i18n::init();   // load locale from NVS before any screen is shown
 
     display_init();
@@ -218,6 +231,10 @@ void setup()
             Serial.println("[nb] Auto-registering device...");
             nb_client::register_device();
         }
+        // Check for a boot loop caused by a bad OTA update — must run after
+        // WiFi is up so it can report update_failed before rolling back.
+        // May reboot the device; the lines below only execute on clean boots.
+        nb_client::check_boot_loop();
         // Kick off a firmware version check immediately after registration
         // (or on subsequent boots if already registered).
         nb_client::start_version_check();
@@ -244,5 +261,15 @@ void loop()
     nb_client::tick();
     shell::update_status(wifi_manager::is_connected(), ha_client::get_connection_state());
     if (nb_client::is_update_available()) shell::show_update_indicator(true);
+
+    // Heap diagnostics: log free + minimum heap every 5 minutes.
+    // "min" is the all-time low since boot — a shrinking floor indicates a leak.
+    const uint32_t now_ms = millis();
+    if (now_ms - s_last_heap_log >= 300000UL) {
+        s_last_heap_log = now_ms;
+        Serial.printf("[heap] free=%u min=%u\n",
+                      ESP.getFreeHeap(), ESP.getMinFreeHeap());
+    }
+
     delay(5);
 }

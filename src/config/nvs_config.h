@@ -77,4 +77,24 @@ namespace nvs_config {
     // Persists UI settings to NVS.
     void save_ui_settings(const UiSettings& s);
 
+    // ---- OTA update state (TICKET-020) --------------------------------------
+    // Used by nb_client to detect boot loops after an OTA update.
+
+    // Mark that OTA just flashed and the device is about to reboot.
+    // Resets the boot counter to 0 so counting starts fresh from the new firmware.
+    void set_update_pending();
+
+    // Increment the per-boot counter — no-op if no update is pending.
+    // Call early in setup() before any code that could crash or hang.
+    void increment_boot_count();
+
+    // True if an OTA update was pending at last boot (flag set by set_update_pending).
+    bool load_update_pending();
+
+    // Current boot-attempt counter (0 when no update is pending).
+    uint8_t load_boot_count();
+
+    // Clear both the pending flag and boot counter (after success or rollback).
+    void clear_update_state();
+
 }  // namespace nvs_config

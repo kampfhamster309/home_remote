@@ -264,6 +264,8 @@ static void on_nb_update_click(lv_event_t* /*e*/)
     lv_timer_handler();
 
     if (result == nb_client::OtaResult::SUCCESS) {
+        // Record that an OTA just ran — enables boot-loop detection on next boot.
+        nvs_config::set_update_pending();
         // Brief pause so the success message is readable, then reboot.
 #ifdef ARDUINO
         delay(1500);
