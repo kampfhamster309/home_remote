@@ -229,4 +229,22 @@ lv_indev_t* get_indev()
     return s_indev;
 }
 
+void on_wake()
+{
+    // Re-attach the FALLING ISR. gpio_wakeup_enable() for GPIO 36 routes the
+    // pin through the RTC GPIO controller, disconnecting it from the main GPIO
+    // interrupt controller. rtc_gpio_deinit() (called in sleep_manager) restores
+    // the GPIO matrix routing, but the FALLING edge that woke the device fired
+    // while the ISR was detached — isrWake was never set. begin() calls
+    // attachInterrupt(FALLING) again. The patched begin(SPIClass&) does NOT call
+    // _spi->begin(), so the SPI bus is left undisturbed.
+    s_touch.begin(s_spi);
+
+    // Prime isrWake so the first post-wake read is not swallowed by
+    // "if (!isrWake) return" in XPT2046_Touchscreen::update().
+    s_touch.isrWake = true;
+
+    Serial.println("[touch] on_wake: ISR re-attached, isrWake primed");
+}
+
 }  // namespace touch_driver

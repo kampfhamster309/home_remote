@@ -27,4 +27,12 @@ namespace touch_driver {
     // Return the registered LVGL input device handle (nullptr before registration).
     lv_indev_t* get_indev();
 
+    // Call immediately after waking from light sleep.
+    // gpio_wakeup_enable() routes GPIO 36 through the RTC GPIO controller,
+    // disconnecting it from the main GPIO interrupt controller that
+    // attachInterrupt(FALLING) registered on.  This re-attaches the FALLING
+    // ISR and primes isrWake so the first post-wake touch is detected without
+    // requiring a new falling edge (the wake touch's edge was missed).
+    void on_wake();
+
 }  // namespace touch_driver
