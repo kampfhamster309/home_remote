@@ -179,8 +179,17 @@ home_remote/
 | 012a | Weather forecast tab | ✅ |
 | 013 | Settings submenu | ✅ |
 | 014 | Error handling & offline mode | ✅ |
-| 016 | Integration testing & hardening | — |
+| 016 | Integration testing & hardening | ✅¹ |
 | 017 | nano_backbone device registration | ✅ |
 | 018 | Firmware version check client | ✅ |
 | 019 | OTA download & flash | ✅ |
-| 020 | Post-update reporting & rollback | — |
+| 020 | Post-update reporting & rollback | ✅ |
+| 021 | Hardware assessment & power architecture | — |
+| 022 | Deep sleep & wake implementation | — |
+| 023 | Adaptive WiFi & HA sync strategy | — |
+| 024 | Battery voltage monitoring | — |
+| 025 | Mobile mode UI adaptations | — |
+| 026 | Power budget validation & tuning | — |
+
+¹ Automated portion complete (heap diagnostics, test checklists). On-device soak
+test and end-to-end OTA validation are manual steps — see `human_to_do.md`.
