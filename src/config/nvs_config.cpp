@@ -151,6 +151,39 @@ void clear_nb_api_key()
     prefs.end();
 }
 
+// ---- Mobile / battery mode settings ----------------------------------------
+
+static constexpr char NVS_NS_MOB[]       = "mobile_cfg";
+static constexpr char NVS_KEY_BAT_MODE[] = "bat_mode";
+static constexpr char NVS_KEY_SLEEP_TO[] = "sleep_tmout";
+
+bool load_mobile_settings(MobileSettings& out)
+{
+    Preferences prefs;
+    prefs.begin(NVS_NS_MOB, /* readOnly= */ true);
+
+    const bool valid = prefs.getBool(NVS_KEY_VALID, false);
+    if (valid) {
+        out.battery_mode    = prefs.getBool(NVS_KEY_BAT_MODE, false);
+        out.sleep_timeout_s = prefs.getUShort(NVS_KEY_SLEEP_TO, 30);
+    }
+
+    prefs.end();
+    return valid;
+}
+
+void save_mobile_settings(const MobileSettings& s)
+{
+    Preferences prefs;
+    prefs.begin(NVS_NS_MOB, /* readOnly= */ false);
+
+    prefs.putBool(NVS_KEY_BAT_MODE,  s.battery_mode);
+    prefs.putUShort(NVS_KEY_SLEEP_TO, s.sleep_timeout_s);
+    prefs.putBool(NVS_KEY_VALID, true);
+
+    prefs.end();
+}
+
 // ---- OTA update state (TICKET-020) -----------------------------------------
 
 static constexpr char NVS_KEY_UPD_PEND[] = "upd_pending";

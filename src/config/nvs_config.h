@@ -33,6 +33,15 @@ struct UiSettings {
     uint8_t brightness;  // 10–255 backlight PWM duty; 255 = maximum brightness
 };
 
+// ----------------------------------------------------------------------------
+// Mobile / battery mode settings (TICKET-022)
+// ----------------------------------------------------------------------------
+
+struct MobileSettings {
+    bool     battery_mode;    // true = light sleep enabled
+    uint16_t sleep_timeout_s; // inactivity seconds before sleep
+};
+
 namespace nvs_config {
 
     // ---- Touch calibration --------------------------------------------------
@@ -76,6 +85,15 @@ namespace nvs_config {
 
     // Persists UI settings to NVS.
     void save_ui_settings(const UiSettings& s);
+
+    // ---- Mobile / battery mode settings ------------------------------------
+
+    // Returns true if stored mobile settings were found and loaded into `out`.
+    // If false, `out` is unchanged — caller should apply defaults.
+    bool load_mobile_settings(MobileSettings& out);
+
+    // Persists mobile settings to NVS.
+    void save_mobile_settings(const MobileSettings& s);
 
     // ---- OTA update state (TICKET-020) --------------------------------------
     // Used by nb_client to detect boot loops after an OTA update.

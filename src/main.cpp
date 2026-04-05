@@ -13,6 +13,7 @@
 #include "ha/area_cache.h"
 #include "ha/weather_cache.h"
 #include "nb/nb_client.h"
+#include "sleep/sleep_manager.h"
 #include "ui/shell.h"
 #include "i18n/i18n.h"
 
@@ -208,6 +209,7 @@ void setup()
 
     touch_driver::init();
     lvgl_init();
+    sleep_manager::init();
 
     if (!touch_driver::is_calibrated()) {
         touch_driver::run_calibration();
@@ -270,6 +272,11 @@ void loop()
         Serial.printf("[heap] free=%u min=%u\n",
                       ESP.getFreeHeap(), ESP.getMinFreeHeap());
     }
+
+    // Enter light sleep if battery mode is on and the inactivity timeout has
+    // elapsed.  Must run after lv_timer_handler() so LVGL's inactivity counter
+    // reflects the latest touch events before we check it.
+    sleep_manager::tick();
 
     delay(5);
 }
